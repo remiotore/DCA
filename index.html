@@ -226,6 +226,7 @@
 
     <footer class="footnote">
       Data: offline snapshot of Yahoo Finance daily prices through <span id="data-through">—</span>.
+      Candles use the previous close as the open (the snapshot stores high/low/close only).
       Fear &amp; Greed: alternative.me snapshot (crypto only).
       Train/test split is chronological (no shuffling) — the test set is the <em>future</em>
       relative to the train set, which is the correct way to validate a time-series strategy.
@@ -635,21 +636,42 @@ function renderMetrics(data, sim) {
 
 function renderChart(data, sim, signal, values) {
   const hasInd = state.indicator !== "none" && values;
-  const traces = [];
-
-  traces.push({
-    x: data.dates, y: sim.portfolioValue, type: "scatter", mode: "lines",
-    name: "Portfolio", line: { color: "#00CC96", width: 3 }
-  });
-  traces.push({
-    x: data.dates, y: sim.totalInvested, type: "scatter", mode: "lines",
-    name: "Invested", line: { color: "#EF553B", width: 2, dash: "dash" }
-  });
-
+  const dates = data.dates;
   const narrow = window.matchMedia("(max-width: 700px)").matches;
+
+  // Dataset has no open: previous close is the day's open (one candle per day).
+  const open = data.close.map((c, i) => i > 0 ? data.close[i - 1] : c);
+  // Price's own profit line, normalised to the first close so it can sit next to DCA ROI.
+  const priceRoi = data.close.map(c => (c / (data.close[0] || 1) - 1) * 100);
+
+  const traces = [
+    {
+      x: dates, open, high: data.high, low: data.low, close: data.close,
+      type: "candlestick", name: "Price",
+      increasing: { line: { color: "#00CC96" } },
+      decreasing: { line: { color: "#EF553B" } }
+    },
+    {
+      x: dates, y: data.volume, type: "bar", name: "Volume", yaxis: "y2",
+      marker: { color: "#3a4559" }
+    },
+    {
+      x: dates, y: sim.roiPct, type: "scatter", mode: "lines", yaxis: "y3",
+      name: "DCA profit %", line: { color: "#00CC96", width: 2 }
+    },
+    {
+      x: dates, y: priceRoi, type: "scatter", mode: "lines", yaxis: "y3",
+      name: "Price profit % (buy & hold)", line: { color: "#AB63FA", width: 2, dash: "dot" }
+    }
+  ];
+
+  const dom = hasInd
+    ? { price: [0.74, 1], vol: [0.64, 0.70], profit: [0.36, 0.56], ind: [0, 0.26] }
+    : { price: [0.68, 1], vol: [0.56, 0.64], profit: [0, 0.44] };
+
   const layout = {
     template: "plotly_dark",
-    height: hasInd ? (narrow ? 540 : 700) : (narrow ? 380 : 520),
+    height: hasInd ? (narrow ? 820 : 980) : (narrow ? 560 : 720),
     margin: { l: 60, r: 40, t: 30, b: 40 },
     hovermode: "x unified",
     showlegend: true,
@@ -657,42 +679,47 @@ function renderChart(data, sim, signal, values) {
     paper_bgcolor: "#1a1f2b",
     plot_bgcolor: "#1a1f2b",
     font: { color: "#fafafa", size: 12 },
-    shapes: [],
+    xaxis: { gridcolor: "#2d3441" },
+    yaxis:  { domain: dom.price, title: "Price", gridcolor: "#2d3441" },
+    yaxis2: { domain: dom.vol, title: "Volume", gridcolor: "#2d3441", showticklabels: false },
+    yaxis3: { domain: dom.profit, title: "Profit %", gridcolor: "#2d3441", zeroline: true },
+    shapes: [
+      { type: "line", xref: "paper", x0: 0, x1: 1, yref: "y3",
+        y0: 0, y1: 0, line: { color: "#9aa4b2", dash: "dot", width: 1 } }
+    ],
     annotations: []
   };
 
   if (hasInd) {
-    layout.yaxis  = { domain: [0.36, 1], title: "Value ($)", gridcolor: "#2d3441" };
-    layout.yaxis2 = { domain: [0, 0.28], title: state.indicator, gridcolor: "#2d3441" };
-    layout.xaxis  = { gridcolor: "#2d3441" };
+    layout.yaxis4 = { domain: dom.ind, title: state.indicator, gridcolor: "#2d3441" };
 
     traces.push({
-      x: data.dates, y: values, type: "scatter", mode: "lines",
-      name: state.indicator, line: { color: "#FFA15A", width: 2 }, yaxis: "y2"
+      x: dates, y: values, type: "scatter", mode: "lines",
+      name: state.indicator, line: { color: "#FFA15A", width: 2 }, yaxis: "y4"
     });
 
     const bx = [], by = [];
-    for (let i = 0; i < data.dates.length; i++) {
+    for (let i = 0; i < dates.length; i++) {
       if (signal[i] && values[i] !== null) {
-        bx.push(data.dates[i]);
+        bx.push(dates[i]);
         by.push(values[i]);
       }
     }
     if (bx.length) {
       traces.push({
         x: bx, y: by, type: "scatter", mode: "markers", name: "Buy",
-        marker: { color: "#00CC96", size: 6, symbol: "triangle-up" }, yaxis: "y2"
+        marker: { color: "#00CC96", size: 6, symbol: "triangle-up" }, yaxis: "y4"
       });
     }
 
     if (state.params.useUpper && state.params.upper !== undefined) {
       layout.shapes.push({
-        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
+        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y4",
         y0: state.params.upper, y1: state.params.upper,
         line: { color: "#EF553B", dash: "dash", width: 1.5 }
       });
       layout.annotations.push({
-        xref: "paper", x: 1, yref: "y2", y: state.params.upper,
+        xref: "paper", x: 1, yref: "y4", y: state.params.upper,
         text: "Don't buy > " + state.params.upper,
         showarrow: false, xanchor: "right", yanchor: "bottom",
         font: { color: "#EF553B", size: 11 }
@@ -701,12 +728,12 @@ function renderChart(data, sim, signal, values) {
 
     if (state.params.useLower && state.params.lower !== undefined) {
       layout.shapes.push({
-        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
+        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y4",
         y0: state.params.lower, y1: state.params.lower,
         line: { color: "#00CC96", dash: "dash", width: 1.5 }
       });
       layout.annotations.push({
-        xref: "paper", x: 1, yref: "y2", y: state.params.lower,
+        xref: "paper", x: 1, yref: "y4", y: state.params.lower,
         text: "Buy < " + state.params.lower,
         showarrow: false, xanchor: "right", yanchor: "bottom",
         font: { color: "#00CC96", size: 11 }
@@ -714,11 +741,8 @@ function renderChart(data, sim, signal, values) {
     }
 
     if (state.indicator === "RSI" || state.indicator === "Fear & Greed") {
-      layout.yaxis2.range = [0, 100];
+      layout.yaxis4.range = [0, 100];
     }
-  } else {
-    layout.yaxis = { title: "Value ($)", gridcolor: "#2d3441" };
-    layout.xaxis = { title: "Date", gridcolor: "#2d3441" };
   }
 
   Plotly.react("chart", traces, layout, { responsive: true, displaylogo: false });
