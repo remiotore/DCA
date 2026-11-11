@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily $5 DCA Backtester + Auto-Optimizer</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #0e1117;
+    --panel: #1a1f2b;
+    --panel-2: #212838;
+    --text: #fafafa;
+    --muted: #9aa4b2;
+    --accent: #00cc96;
+    --danger: #ef553b;
+    --orange: #ffa15a;
+    --border: #2d3441;
+    --radius: 8px;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+  #sidebar {
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 20px 20px 40px; overflow-y: auto; height: 100vh;
+    position: sticky; top: 0;
+  }
+  #sidebar h1 { font-size: 20px; margin: 0 0 2px; }
+  #sidebar .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  #sidebar section { margin-bottom: 26px; }
+  #sidebar h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+    margin: 0 0 12px; color: var(--accent); font-weight: 700;
+  }
+  #sidebar label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5px; }
+  #sidebar label:first-of-type { margin-top: 0; }
+  #sidebar select, #sidebar input[type="text"], #sidebar input[type="number"] {
+    width: 100%; padding: 8px 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 14px; outline: none; font-family: inherit;
+  }
+  #sidebar select:focus, #sidebar input:focus { border-color: var(--accent); }
+  #sidebar input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+  .range-val { color: var(--text); font-weight: 600; float: right; font-size: 13px; }
+  button {
+    background: var(--accent); color: #0e1117; border: none; padding: 11px 14px;
+    border-radius: var(--radius); font-weight: 700; cursor: pointer;
+    font-size: 14px; width: 100%; font-family: inherit; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; overflow-x: hidden; }
+  #main h2 { font-size: 22px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  section.block { margin-bottom: 36px; }
+  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 0 0 22px; }
+  .metric {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; min-width: 0;
+  }
+  .metric .label { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .metric .value { font-size: 22px; font-weight: 600; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .metric .delta { font-size: 13px; margin-top: 4px; }
+  .metric .delta.pos { color: var(--accent); }
+  .metric .delta.neg { color: var(--danger); }
+  .metric .delta.off { color: var(--muted); }
+  #chart { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; overflow: hidden; }
+  .data-table {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .data-table th, .data-table td {
+    padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .data-table th {
+    background: var(--panel-2); color: var(--muted); font-weight: 600;
+    font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover { background: rgba(255,255,255,.03); }
+  .data-table tr.highlight td { background: #2e7d32; color: #fff; font-weight: 600; }
+  .success, .warning { border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; font-size: 14px; line-height: 1.5; }
+  .success { background: rgba(0,204,150,.1); border: 1px solid rgba(0,204,150,.4); color: #b9f4e2; }
+  .warning { background: rgba(239,85,59,.1); border: 1px solid rgba(239,85,59,.4); color: #ffc9bd; }
+  code {
+    background: rgba(255,255,255,.08); padding: 2px 6px; border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 13px;
+  }
+  .log-wrap { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  .log-wrap .data-table { border: none; border-radius: 0; }
+  .log-wrap .data-table th { position: sticky; top: 0; z-index: 1; }
+  details > summary {
+    cursor: pointer; font-size: 15px; font-weight: 600; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); list-style: none;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  details > .log-wrap { border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; }
+  .hidden { display: none !important; }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
+    align-items: center; justify-content: center; z-index: 1000; font-size: 16px; color: var(--text);
+  }
+  #overlay.show { display: flex; }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25);
+    border-top-color: var(--accent); border-radius: 50%; display: inline-block;
+    margin-right: 10px; animation: spin .8s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer.footnote {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 12.5px; line-height: 1.6;
+  }
+  @media (max-width: 980px) {
+    #app { grid-template-columns: 1fr; }
+    #sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    #main { padding: 22px 18px 50px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) { .metrics { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div id="overlay"><span class="spinner"></span><span>Loading…</span></div>
+
+<div id="app">
+  <aside id="sidebar">
+    <h1>📈 Daily $5 DCA</h1>
+    <p class="subtitle">Backtester + Auto-Optimizer</p>
+
+    <section>
+      <h2>⚙️ Settings</h2>
+      <label for="category">Asset category</label>
+      <select id="category"></select>
+
+      <label for="asset">Choose an asset</label>
+      <select id="asset"></select>
+
+      <label for="custom-ticker">Or enter a Yahoo Finance ticker</label>
+      <input id="custom-ticker" type="text" placeholder="e.g. AAPL" autocomplete="off" spellcheck="false">
+
+      <label for="daily-amount">Daily amount ($)</label>
+      <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
+
+      <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
+      <input id="days-back" type="range" min="60" max="1825" step="30" value="730">
+    </section>
+
+    <section>
+      <h2>🎛️ Entry Indicator</h2>
+      <label for="indicator">Indicator</label>
+      <select id="indicator"></select>
+      <div id="indicator-params"></div>
+      <p id="indicator-hint" class="hint"></p>
+    </section>
+
+    <section>
+      <h2>🔍 Auto-Optimizer</h2>
+      <p class="hint" style="margin-top:0">
+        Searches <strong>every indicator and config</strong> plus the
+        <em>no-restriction</em> baseline, using a train/test split to detect overfitting.
+      </p>
+      <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
+      <input id="split" type="range" min="50" max="85" step="5" value="70">
+      <div style="margin-top:14px">
+        <button id="run-opt" type="button">🚀 Find best config</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>🏆 Ranking</h2>
+      <p class="hint" style="margin-top:0">
+        Fetch data for every asset in the catalogue and rank them under the
+        current configuration. This performs many network requests.
+      </p>
+      <button id="load-rank" type="button" class="secondary">Load Top 5</button>
+      <p id="rank-progress" class="hint"></p>
+    </section>
+  </aside>
+
+  <main id="main">
+    <section class="block" id="asset-view">
+      <h2 id="asset-title">📊 —</h2>
+      <div class="metrics" id="metrics"></div>
+      <div id="chart"></div>
+    </section>
+
+    <section class="block hidden" id="opt-section">
+      <h2>🔍 Auto-Optimizer Results</h2>
+      <div id="opt-results"></div>
+    </section>
+
+    <section class="block" id="rank-section">
+      <h2>🏆 Top 5 Assets (current config)</h2>
+      <div id="rank-results">
+        <p class="hint">Click <strong>Load Top 5</strong> in the sidebar to rank every asset.</p>
+      </div>
+      <p id="rank-note" class="hint hidden">
+        ℹ️ Non-crypto assets fall back to <em>No restriction</em> when F&amp;G is selected.
+      </p>
+    </section>
+
+    <section class="block">
+      <details>
+        <summary>📄 View daily purchase log</summary>
+        <div class="log-wrap" id="purchase-log"></div>
+      </details>
+    </section>
+
+    <footer class="footnote">
+      Data: Yahoo Finance. Fear &amp; Greed: alternative.me (crypto only).
+      Train/test split is chronological (no shuffling) — the test set is the <em>future</em>
+      relative to the train set, which is the correct way to validate a time-series strategy.
+      Fees/slippage ignored. Past performance ≠ future results.
+      <br>
+      Requests are routed through public CORS proxies so the browser can talk to Yahoo Finance.
+      If loading fails, a proxy may be temporarily unavailable — press the button again or reload.
+    </footer>
+  </main>
+</div>
+
+<script>
+/* =========================================================================
+   Asset catalogue
+   ========================================================================= */
+const ASSET_CATALOGUE = {
+  "── Crypto ──": {
+    "Bitcoin (BTC-USD)": "BTC-USD",
+    "Ethereum (ETH-USD)": "ETH-USD",
+    "Solana (SOL-USD)": "SOL-USD",
+    "Cardano (ADA-USD)": "ADA-USD",
+    "Dogecoin (DOGE-USD)": "DOGE-USD",
+    "Shiba Inu (SHIB-USD)": "SHIB-USD",
+    "Polkadot (DOT-USD)": "DOT-USD",
+    "Chainlink (LINK-USD)": "LINK-USD",
+    "Litecoin (LTC-USD)": "LTC-USD",
+    "XRP (XRP-USD)": "XRP-USD"
+  },
+  "── Stocks ──": {
+    "Apple (AAPL)": "AAPL",
+    "Microsoft (MSFT)": "MSFT",
+    "Tesla (TSLA)": "TSLA",
+    "Amazon (AMZN)": "AMZN",
+    "NVIDIA (NVDA)": "NVDA",
+    "Alphabet (GOOGL)": "GOOGL",
+    "Meta (META)": "META",
+    "S&P 500 ETF (SPY)": "SPY",
+    "Nasdaq 100 ETF (QQQ)": "QQQ"
+  },
+  "── Commodities ──": {
+    "Gold (GC=F)": "GC=F",
+    "Silver (SI=F)": "SI=F",
+    "Crude Oil WTI (CL=F)": "CL=F",
+    "Brent Crude (BZ=F)": "BZ=F",
+    "Natural Gas (NG=F)": "NG=F",
+    "Copper (HG=F)": "HG=F",
+    "Corn (ZC=F)": "ZC=F",
+    "Wheat (ZW=F)": "ZW=F",
+    "Platinum (PL=F)": "PL=F",
+    "Palladium (PA=F)": "PA=F"
+  },
+  "── Shipping & Freight ──": {
+    "Breakwave Tanker Shipping ETF (BWET)": "BWET",
+    "Breakwave Dry Bulk Shipping ETF (BDRY)": "BDRY",
+    "SonicShares Global Shipping ETF (BOAT)": "BOAT",
+    "U.S. Global Sea to Sky Cargo ETF (SEA)": "SEA",
+    "Frontline (FRO)": "FRO",
+    "International Seaways (INSW)": "INSW",
+    "DHT Holdings (DHT)": "DHT"
+  }
+};
+const ALL_ASSETS = {};
+Object.values(ASSET_CATALOGUE).forEach(g => Object.assign(ALL_ASSETS, g));
+
+/* =========================================================================
+   Indicator definitions & grids
+   ========================================================================= */
+const INDICATORS = {
+  "none":         { label: "No restriction (buy every day)", default: {} },
+  "RSI":          { label: "RSI",           default: { period: 14, threshold: 30 } },
+  "CCI":          { label: "CCI",           default: { period: 14, threshold: -100 } },
+  "MFI":          { label: "MFI",           default: { period: 14, threshold: 20 } },
+  "Fear & Greed": { label: "Fear & Greed",  default: { threshold: 25 }, cryptoOnly: true }
+};
+
+const GRIDS = {
+  "none": [{}],
+  "RSI": (() => { const a=[]; [7,14,21].forEach(p => [20,25,30,35,40,45].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
+  "CCI": (() => { const a=[]; [7,14,20].forEach(p => [-250,-200,-150,-100,-50,0].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
+  "MFI": (() => { const a=[]; [7,14,21].forEach(p => [10,15,20,25,30,35].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
+  "Fear & Greed": [10,15,20,25,30,40,50].map(t => ({ threshold: t }))
+};
+
+/* =========================================================================
+   State
+   ========================================================================= */
+const state = {
+  ticker: "BTC-USD",
+  daysBack: 730,
+  dailyAmount: 5,
+  indicator: "none",
+  params: {},
+  splitPct: 70
+};
+
+let fngMap = null;          // Map "YYYY-MM-DD" -> int
+let fngPromise = null;
+let fngAvailable = false;
+
+const dataCache = new Map(); // key `${ticker}|${daysBack}` -> data | Promise
+
+/* =========================================================================
+   Utilities
+   ========================================================================= */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function fmt(x, d) {
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  return Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fmtPrice(x) {
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  const abs = Math.abs(x);
+  let d = 2;
+  if (abs > 0 && abs < 0.01) d = 8;
+  else if (abs < 1) d = 4;
+  return Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function isCrypto(ticker) {
+  const t = String(ticker).toUpperCase();
+  return ["-USD","-USDT","-EUR","-BTC"].some(s => t.endsWith(s));
+}
+function getEffectiveTicker() {
+  const custom = document.getElementById("custom-ticker").value.trim().toUpperCase();
+  if (custom) return custom;
+  const sel = document.getElementById("asset");
+  return sel.value || "BTC-USD";
+}
+function showOverlay(on) {
+  document.getElementById("overlay").classList.toggle("show", !!on);
+}
+
+/* =========================================================================
+   Network layer
+   ========================================================================= */
+const PROXIES = [
+  { name: "allorigins", wrap: u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u) },
+  { name: "codetabs",   wrap: u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u) },
+  { name: "corsproxy",  wrap: u => "https://corsproxy.io/?url=" + encodeURIComponent(u) }
+];
+
+async function fetchWithTimeout(url, ms = 20000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function fetchJSONWithProxy(url) {
+  let lastErr = null;
+  for (const p of PROXIES) {
+    try {
+      const r = await fetchWithTimeout(p.wrap(url));
+      if (!r.ok) throw new Error(p.name + ": HTTP " + r.status);
+      const text = await r.text();
+      return JSON.parse(text);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("All CORS proxies failed");
+}
+
+/* ---- Fear & Greed (alternative.me supports CORS directly) ---- */
+async function loadFearGreed() {
+  if (fngMap) return fngMap;
+  if (fngPromise) return fngPromise;
+  fngPromise = (async () => {
+    try {
+      const r = await fetchWithTimeout("https://api.alternative.me/fng/?limit=0", 15000);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const json = await r.json();
+      const m = new Map();
+      (json.data || []).forEach(row => {
+        const d = new Date(parseInt(row.timestamp, 10) * 1000).toISOString().slice(0, 10);
+        m.set(d, parseInt(row.value, 10));
+      });
+      fngMap = m;
+      return m;
+    } catch (e) {
+      fngMap = new Map();
+      return fngMap;
+    } finally {
+      fngPromise = null;
+    }
+  })();
+  return fngPromise;
+}
+
+/* ---- Yahoo Finance OHLCV ---- */
+async function fetchOHLCV(ticker, daysBack) {
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - daysBack * 86400;
+  const url =
+    "https://query1.finance.yahoo.com/v8/finance/chart/" +
+    encodeURIComponent(ticker) +
+    "?period1=" + start + "&period2=" + end +
+    "&interval=1d&includeAdjustedClose=true";
+
+  const json = await fetchJSONWithProxy(url);
+  const res = json && json.chart && json.chart.result && json.chart.result[0];
+  if (!res || !res.timestamp) throw new Error("No data returned for " + ticker);
+
+  const q = res.indicators.quote[0];
+  const adj = res.indicators.adjclose && res.indicators.adjclose[0]
+            ? res.indicators.adjclose[0].adjclose : null;
+
+  const rows = [];
+  for (let i = 0; i < res.timestamp.length; i++) {
+    const c = q.close[i];
+    if (c == null || q.high[i] == null || q.low[i] == null) continue;
+    let ratio = 1;
+    if (adj && adj[i] != null && c) ratio = adj[i] / c;
+    rows.push({
+      date: new Date(res.timestamp[i] * 1000).toISOString().slice(0, 10),
+      open: q.open[i] == null ? NaN : q.open[i] * ratio,
+      high: q.high[i] * ratio,
+      low: q.low[i] * ratio,
+      close: c * ratio,
+      volume: q.volume[i] == null ? 0 : q.volume[i]
+    });
+  }
+  if (!rows.length) throw new Error("No usable rows for " + ticker);
+  rows.sort((a, b) => a.date < b.date ? -1 : 1);
+
+  return {
+    dates: rows.map(r => r.date),
+    open:  rows.map(r => r.open),
+    high:  rows.map(r => r.high),
+    low:   rows.map(r => r.low),
+    close: rows.map(r => r.close),
+    volume:rows.map(r => r.volume)
+  };
+}
+
+async function getData(ticker, daysBack) {
+  const key = ticker + "|" + daysBack;
+  if (dataCache.has(key)) return dataCache.get(key);
+  const p = fetchOHLCV(ticker, daysBack);
+  dataCache.set(key, p);
+  try {
+    const d = await p;
+    dataCache.set(key, d);
+    return d;
+  } catch (e) {
+    dataCache.delete(key);
+    throw e;
+  }
+}
+
+/* =========================================================================
+   Indicators
+   ========================================================================= */
+function computeRSI(closes, period) {
+  const n = closes.length;
+  const out = new Array(n).fill(null);
+  if (n <= period) return out;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) avgGain += d; else avgLoss -= d;
+  }
+  avgGain /= period; avgLoss /= period;
+  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < n; i++) {
+    const d = closes[i] - closes[i - 1];
+    const gain = d > 0 ? d : 0;
+    const loss = d < 0 ? -d : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return out;
+}
+
+function computeCCI(highs, lows, closes, period) {
+  const n = closes.length;
+  const out = new Array(n).fill(null);
+  if (n < period) return out;
+  const tp = new Array(n);
+  for (let i = 0; i < n; i++) tp[i] = (highs[i] + lows[i] + closes[i]) / 3;
+  for (let i = period - 1; i < n; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += tp[j];
+    const sma = sum / period;
+    let md = 0;
+    for (let j = i - period + 1; j <= i; j++) md += Math.abs(tp[j] - sma);
+    md /= period;
+    out[i] = md === 0 ? 0 : (tp[i] - sma) / (0.015 * md);
+  }
+  return out;
+}
+
+function computeMFI(highs, lows, closes, volumes, period) {
+  const n = closes.length;
+  const out = new Array(n).fill(null);
+  if (n < period + 1) return out;
+  const tp = new Array(n);
+  for (let i = 0; i < n; i++) tp[i] = (highs[i] + lows[i] + closes[i]) / 3;
+  for (let i = period; i < n; i++) {
+    let pos = 0, neg = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const mf = tp[j] * volumes[j];
+      if (tp[j] > tp[j - 1]) pos += mf;
+      else if (tp[j] < tp[j - 1]) neg += mf;
+    }
+    out[i] = neg === 0 ? 100 : 100 - 100 / (1 + pos / neg);
+  }
+  return out;
+}
+
+function computeSignal(data, indicator, params, fng) {
+  const n = data.close.length;
+  const signal = new Array(n).fill(false);
+  let values = null;
+
+  if (indicator === "none") {
+    for (let i = 0; i < n; i++) signal[i] = true;
+    return { signal, values: null };
+  }
+
+  if (indicator === "RSI") {
+    values = computeRSI(data.close, params.period);
+  } else if (indicator === "CCI") {
+    values = computeCCI(data.high, data.low, data.close, params.period);
+  } else if (indicator === "MFI") {
+    values = computeMFI(data.high, data.low, data.close, data.volume, params.period);
+  } else if (indicator === "Fear & Greed") {
+    values = new Array(n).fill(null);
+    if (fng && fng.size > 0) {
+      let last = null;
+      for (let i = 0; i < n; i++) {
+        const d = data.dates[i];
+        if (fng.has(d)) last = fng.get(d);
+        values[i] = last;
+      }
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    signal[i] = values[i] !== null && values[i] < params.threshold;
+  }
+  return { signal, values };
+}
+
+/* =========================================================================
+   Simulation
+   ========================================================================= */
+function simulateDCA(data, dailyAmount, signal) {
+  const n = data.close.length;
+  const shares = new Array(n).fill(0);
+  const cumShares = new Array(n).fill(0);
+  const buyCount = new Array(n).fill(0);
+  const totalInvested = new Array(n).fill(0);
+  const portfolioValue = new Array(n).fill(0);
+  const profit = new Array(n).fill(0);
+  const roiPct = new Array(n).fill(0);
+
+  let cs = 0, bc = 0;
+  for (let i = 0; i < n; i++) {
+    shares[i] = signal[i] ? dailyAmount / data.close[i] : 0;
+    cs += shares[i];
+    bc += signal[i] ? 1 : 0;
+    cumShares[i] = cs;
+    buyCount[i] = bc;
+    totalInvested[i] = dailyAmount * bc;
+    portfolioValue[i] = cs * data.close[i];
+    profit[i] = portfolioValue[i] - totalInvested[i];
+    roiPct[i] = totalInvested[i] > 0 ? (profit[i] / totalInvested[i]) * 100 : 0;
+  }
+  return { shares, cumShares, buyCount, totalInvested, portfolioValue, profit, roiPct };
+}
+
+/* =========================================================================
+   Train/test evaluation + grid search
+   ========================================================================= */
+function sliceData(data, start, end) {
+  return {
+    dates: data.dates.slice(start, end),
+    open:  data.open.slice(start, end),
+    high:  data.high.slice(start, end),
+    low:   data.low.slice(start, end),
+    close: data.close.slice(start, end),
+    volume:data.volume.slice(start, end)
+  };
+}
+
+function evalSegment(data, dailyAmount, signal, start, end) {
+  if (end <= start) return { roi: 0, buys: 0 };
+  const seg = sliceData(data, start, end);
+  const sim = simulateDCA(seg, dailyAmount, signal.slice(start, end));
+  const last = end - start - 1;
+  return {
+    roi: sim.totalInvested[last] > 0 ? sim.roiPct[last] : 0,
+    buys: sim.buyCount[last]
+  };
+}
+
+function evaluateConfig(data, dailyAmount, signal, splitRatio) {
+  const n = data.close.length;
+  const split = Math.floor(n * splitRatio);
+  const tr = evalSegment(data, dailyAmount, signal, 0, split);
+  const te = evalSegment(data, dailyAmount, signal, split, n);
+  return {
+    train_roi: tr.roi, test_roi: te.roi,
+    train_buy_days: tr.buys, test_buy_days: te.buys,
+    train_days: split, test_days: n - split
+  };
+}
+
+function fmtParams(indicator, params) {
+  if (!params || Object.keys(params).length === 0) return "No restriction";
+  if (indicator === "Fear & Greed") return "F&G < " + params.threshold;
+  return indicator + "(" + params.period + ") < " + params.threshold;
+}
+
+function gridSearchAll(data, dailyAmount, fng, splitRatio, crypto) {
+  const rows = [];
+  const allTrue = new Array(data.close.length).fill(true);
+  const base = evaluateConfig(data, dailyAmount, allTrue, splitRatio);
+  rows.push({ indicator: "none", params: {}, label: "No restriction", ...base });
+
+  ["RSI", "CCI", "MFI", "Fear & Greed"].forEach(ind => {
+    if (ind === "Fear & Greed" && (!crypto || !fng || fng.size === 0)) return;
+    GRIDS[ind].forEach(params => {
+      const { signal } = computeSignal(data, ind, params, fng);
+      const ev = evaluateConfig(data, dailyAmount, signal, splitRatio);
+      rows.push({ indicator: ind, params, label: fmtParams(ind, params), ...ev });
+    });
+  });
+
+  rows.forEach(r => {
+    r.train_buy_pct = r.train_days > 0 ? +(r.train_buy_days / r.train_days * 100).toFixed(1) : 0;
+    r.test_buy_pct  = r.test_days  > 0 ? +(r.test_buy_days  / r.test_days  * 100).toFixed(1) : 0;
+  });
+  return rows;
+}
+
+/* =========================================================================
+   Rendering helpers
+   ========================================================================= */
+function renderMetrics(data, sim) {
+  const n = data.close.length;
+  const last = n - 1;
+  const invested = sim.totalInvested[last];
+  const value = sim.portfolioValue[last];
+  const profit = sim.profit[last];
+  const roi = sim.roiPct[last];
+  const avgCost = sim.cumShares[last] > 0 ? invested / sim.cumShares[last] : 0;
+  const buyDays = sim.buyCount[last];
+  const pct = n > 0 ? (buyDays / n) * 100 : 0;
+  const cls = profit >= 0 ? "pos" : "neg";
+  const sign = roi >= 0 ? "+" : "";
+
+  document.getElementById("metrics").innerHTML =
+    '<div class="metric"><div class="label">Total Invested</div>' +
+    '<div class="value">$' + fmt(invested, 2) + '</div></div>' +
+    '<div class="metric"><div class="label">Portfolio Value</div>' +
+    '<div class="value">$' + fmt(value, 2) + '</div></div>' +
+    '<div class="metric"><div class="label">Profit / Loss</div>' +
+    '<div class="value">$' + fmt(profit, 2) + '</div>' +
+    '<div class="delta ' + cls + '">' + sign + fmt(roi, 2) + '%</div></div>' +
+    '<div class="metric"><div class="label">Avg Cost / Unit</div>' +
+    '<div class="value">$' + fmtPrice(avgCost) + '</div></div>' +
+    '<div class="metric"><div class="label">Buy Days</div>' +
+    '<div class="value">' + buyDays + ' / ' + n + '</div>' +
+    '<div class="delta off">' + fmt(pct, 1) + '%</div></div>';
+}
+
+function renderChart(data, sim, signal, values) {
+  const hasInd = state.indicator !== "none" && values;
+  const traces = [];
+
+  traces.push({
+    x: data.dates, y: sim.portfolioValue, type: "scatter", mode: "lines",
+    name: "Portfolio", line: { color: "#00CC96", width: 3 }
+  });
+  traces.push({
+    x: data.dates, y: sim.totalInvested, type: "scatter", mode: "lines",
+    name: "Invested", line: { color: "#EF553B", width: 2, dash: "dash" }
+  });
+
+  const layout = {
+    template: "plotly_dark",
+    height: hasInd ? 700 : 520,
+    margin: { l: 60, r: 40, t: 30, b: 40 },
+    hovermode: "x unified",
+    showlegend: true,
+    legend: { orientation: "h", y: 1.09, x: 1, xanchor: "right", font: { size: 12 } },
+    paper_bgcolor: "#1a1f2b",
+    plot_bgcolor: "#1a1f2b",
+    font: { color: "#fafafa", size: 12 },
+    shapes: [],
+    annotations: []
+  };
+
+  if (hasInd) {
+    layout.yaxis  = { domain: [0.36, 1], title: "Value ($)", gridcolor: "#2d3441" };
+    layout.yaxis2 = { domain: [0, 0.28], title: state.indicator, gridcolor: "#2d3441" };
+    layout.xaxis  = { gridcolor: "#2d3441" };
+
+    traces.push({
+      x: data.dates, y: values, type: "scatter", mode: "lines",
+      name: state.indicator, line: { color: "#FFA15A", width: 2 }, yaxis: "y2"
+    });
+
+    const bx = [], by = [];
+    for (let i = 0; i < data.dates.length; i++) {
+      if (signal[i] && values[i] !== null) {
+        bx.push(data.dates[i]);
+        by.push(values[i]);
+      }
+    }
+    if (bx.length) {
+      traces.push({
+        x: bx, y: by, type: "scatter", mode: "markers", name: "Buy",
+        marker: { color: "#00CC96", size: 6, symbol: "triangle-up" }, yaxis: "y2"
+      });
+    }
+
+    const thr = state.params.threshold;
+    if (thr !== undefined) {
+      layout.shapes.push({
+        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
+        y0: thr, y1: thr, line: { color: "#EF553B", dash: "dash", width: 1.5 }
+      });
+      layout.annotations.push({
+        xref: "paper", x: 1, yref: "y2", y: thr, text: "Buy < " + thr,
+        showarrow: false, xanchor: "right", yanchor: "bottom",
+        font: { color: "#EF553B", size: 11 }
+      });
+    }
+
+    if (state.indicator === "RSI") {
+      layout.yaxis2.range = [0, 100];
+      [70, 30].forEach(y => layout.shapes.push({
+        type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
+        y0: y, y1: y, line: { color: "#888", dash: "dot", width: 1 }
+      }));
+    }
+  } else {
+    layout.yaxis = { title: "Value ($)", gridcolor: "#2d3441" };
+    layout.xaxis = { title: "Date", gridcolor: "#2d3441" };
+  }
+
+  Plotly.react("chart", traces, layout, { responsive: true, displaylogo: false });
+}
+
+function renderLog(data, sim, signal) {
+  const rows = [];
+  for (let i = 0; i < data.dates.length; i++) {
+    rows.push(
+      "<tr><td>" + data.dates[i] + "</td>" +
+      "<td>$" + fmtPrice(data.close[i]) + "</td>" +
+      "<td>" + (signal[i] ? "✅" : "—") + "</td>" +
+      "<td>" + fmt(sim.shares[i], 6) + "</td>" +
+      "<td>" + fmt(sim.cumShares[i], 6) + "</td>" +
+      "<td>$" + fmt(sim.totalInvested[i], 2) + "</td>" +
+      "<td>$" + fmt(sim.portfolioValue[i], 2) + "</td></tr>"
+    );
+  }
+  document.getElementById("purchase-log").innerHTML =
+    '<table class="data-table"><thead><tr>' +
+    '<th>Date</th><th>Price</th><th>Bought?</th><th>Shares Bought</th>' +
+    '<th>Cumulative Shares</th><th>Total Invested</th><th>Portfolio Value</th>' +
+    '</tr></thead><tbody>' + rows.join("") + '</tbody></table>';
+}
+
+function showError(msg) {
+  document.getElementById("asset-title").textContent = "📊 " + state.ticker;
+  document.getElementById("metrics").innerHTML =
+    '<div class="metric" style="grid-column:1/-1">' +
+    '<div class="label">Error</div>' +
+    '<div class="value" style="color:var(--danger);font-size:15px;white-space:normal">' +
+    msg + '</div></div>';
+  document.getElementById("chart").innerHTML = "";
+  document.getElementById("purchase-log").innerHTML = "";
+}
+
+/* =========================================================================
+   Main render
+   ========================================================================= */
+let renderToken = 0;
+
+async function render() {
+  const token = ++renderToken;
+  state.ticker = getEffectiveTicker();
+  document.getElementById("asset-title").textContent = "📊 " + state.ticker;
+
+  try {
+    const data = await getData(state.ticker, state.daysBack);
+    if (token !== renderToken) return;
+
+    let fng = null;
+    if (state.indicator === "Fear & Greed") {
+      fng = await loadFearGreed();
+      if (token !== renderToken) return;
+    }
+
+    const { signal, values } = computeSignal(data, state.indicator, state.params, fng);
+    const sim = simulateDCA(data, state.dailyAmount, signal);
+
+    renderMetrics(data, sim);
+    renderChart(data, sim, signal, values);
+    renderLog(data, sim, signal);
+
+    // Keep the ranking table in sync with the highlighted ticker
+    const hl = document.querySelectorAll("#rank-results tr.highlight");
+    hl.forEach(tr => tr.classList.remove("highlight"));
+  } catch (e) {
+    if (token !== renderToken) return;
+    showError("Could not load data for " + state.ticker + " — " + e.message +
+              ". Public CORS proxies may be temporarily unavailable; try again or reload.");
+  }
+}
+
+/* =========================================================================
+   Sidebar wiring
+   ========================================================================= */
+function populateAssetSelect(category) {
+  const sel = document.getElementById("asset");
+  sel.innerHTML = "";
+  Object.entries(ASSET_CATALOGUE[category]).forEach(([name, tk]) => {
+    const o = document.createElement("option");
+    o.value = tk; o.textContent = name;
+    sel.appendChild(o);
+  });
+}
+
+function updateIndicatorOptions() {
+  const sel = document.getElementById("indicator");
+  const crypto = isCrypto(getEffectiveTicker());
+  const choices = ["none", "RSI", "CCI", "MFI"];
+  if (crypto && fngAvailable) choices.push("Fear & Greed");
+
+  const current = Array.from(sel.options).map(o => o.value);
+  const changed = current.length !== choices.length ||
+                  current.some((v, i) => v !== choices[i]);
+
+  if (changed) {
+    sel.innerHTML = "";
+    choices.forEach(c => {
+      const o = document.createElement("option");
+      o.value = c; o.textContent = INDICATORS[c].label;
+      sel.appendChild(o);
+    });
+  }
+
+  if (!choices.includes(state.indicator)) {
+    state.indicator = "none";
+    state.params = {};
+  }
+  sel.value = state.indicator;
+}
+
+function makeRange(labelText, min, max, value, step, onInput) {
+  const wrap = document.createElement("div");
+  const label = document.createElement("label");
+  label.textContent = labelText + " ";
+  const val = document.createElement("span");
+  val.className = "range-val"; val.textContent = value;
+  label.appendChild(val);
+
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = min; input.max = max; input.step = step; input.value = value;
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    val.textContent = v;
+    onInput(v);
+  });
+
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  return wrap;
+}
+
+function updateIndicatorParams() {
+  const container = document.getElementById("indicator-params");
+  const hint = document.getElementById("indicator-hint");
+  container.innerHTML = "";
+
+  if (state.indicator === "none") {
+    state.params = {};
+    hint.textContent = "Currently buying every day, no filter applied.";
+    return;
+  }
+
+  const def = INDICATORS[state.indicator].default;
+  state.params = {};
+
+  if ("period" in def) {
+    state.params.period = def.period;
+    container.appendChild(makeRange("Period", 5, 30, def.period, 1, v => {
+      state.params.period = v;
+      render();
+    }));
+  }
+
+  if ("threshold" in def) {
+    let lo, hi, step;
+    if (state.indicator === "RSI") { lo = 10; hi = 60; step = 1; }
+    else if (state.indicator === "CCI") { lo = -300; hi = 100; step = 10; }
+    else if (state.indicator === "MFI") { lo = 5; hi = 50; step = 1; }
+    else { lo = 5; hi = 60; step = 1; }
+    state.params.threshold = def.threshold;
+    container.appendChild(makeRange("Buy when below", lo, hi, def.threshold, step, v => {
+      state.params.threshold = v;
+      render();
+    }));
+  }
+
+  hint.textContent = "Default for " + state.indicator + ": " +
+    Object.entries(def).map(([k, v]) => k + "=" + v).join(", ");
+}
+
+async function onTickerChange() {
+  state.ticker = getEffectiveTicker();
+  await loadFearGreed();
+  fngAvailable = !!(fngMap && fngMap.size > 0);
+  updateIndicatorOptions();
+  updateIndicatorParams();
+  render();
+}
+
+/* =========================================================================
+   Auto-optimizer
+   ========================================================================= */
+async function runOptimizer() {
+  const btn = document.getElementById("run-opt");
+  const section = document.getElementById("opt-section");
+  const out = document.getElementById("opt-results");
+  section.classList.remove("hidden");
+  btn.disabled = true;
+  out.innerHTML = '<p class="hint"><span class="spinner"></span>Running grid search with train/test split…</p>';
+
+  try {
+    const data = await getData(state.ticker, state.daysBack);
+    const crypto = isCrypto(state.ticker);
+    const fng = crypto ? await loadFearGreed() : null;
+    const rows = gridSearchAll(data, state.dailyAmount, fng, state.splitPct / 100, crypto);
+
+    const baseline = rows.find(r => r.indicator === "none");
+    const active = rows.filter(r => r.train_buy_pct >= 2.0);
+    const pool = active.length ? active : rows;
+    const best = pool.slice().sort((a, b) => b.train_roi - a.train_roi)[0];
+
+    const diff = best.test_roi - baseline.test_roi;
+    const sign = diff >= 0 ? "+" : "";
+    const diffColor = diff >= 0 ? "var(--accent)" : "var(--danger)";
+
+    const top20 = rows.slice()
+      .sort((a, b) => b.train_roi - a.train_roi)
+      .slice(0, 20);
+
+    const trs = top20.map(r =>
+      "<tr><td>" + r.label + "</td>" +
+      "<td>" + (r.indicator === "none" ? "No restriction" : r.indicator) + "</td>" +
+      "<td>" + r.train_roi.toFixed(2) + "</td>" +
+      "<td>" + r.test_roi.toFixed(2) + "</td>" +
+      "<td>" + r.train_buy_pct.toFixed(1) + "</td>" +
+      "<td>" + r.test_buy_pct.toFixed(1) + "</td></tr>"
+    ).join("");
+
+    out.innerHTML =
+      '<div class="metrics">' +
+        '<div class="metric"><div class="label">Best Indicator</div>' +
+          '<div class="value" style="font-size:18px">' + (best.indicator === "none" ? "No restriction" : best.indicator) + '</div></div>' +
+        '<div class="metric"><div class="label">Train ROI</div>' +
+          '<div class="value">' + best.train_roi.toFixed(2) + '%</div></div>' +
+        '<div class="metric"><div class="label">Test ROI</div>' +
+          '<div class="value">' + best.test_roi.toFixed(2) + '%</div>' +
+          '<div class="delta" style="color:' + diffColor + '">' + sign + diff.toFixed(2) + '% vs baseline</div></div>' +
+        '<div class="metric"><div class="label">Buy Frequency</div>' +
+          '<div class="value" style="font-size:18px">' + best.train_buy_pct.toFixed(1) + '% / ' + best.test_buy_pct.toFixed(1) + '%</div></div>' +
+      '</div>' +
+      '<div class="success"><strong>Best config:</strong> <code>' + best.label + '</code><br>' +
+        'Chosen on train set (' + state.splitPct + '% of data). ' +
+        'Baseline (buy every day) → train <strong>' + baseline.train_roi.toFixed(2) + '%</strong>, ' +
+        'test <strong>' + baseline.test_roi.toFixed(2) + '%</strong>.</div>' +
+      (best.test_roi < baseline.test_roi
+        ? '<div class="warning">⚠️ The "best" config <strong>underperformed the baseline on the test set</strong>. ' +
+          'This is classic overfitting — treat this indicator rule with caution.</div>'
+        : '') +
+      '<h3 style="font-size:15px;margin:22px 0 10px">Top 20 configs (sorted by train ROI)</h3>' +
+      '<table class="data-table"><thead><tr>' +
+        '<th>Strategy</th><th>Indicator</th><th>Train ROI %</th><th>Test ROI %</th>' +
+        '<th>Train Buy %</th><th>Test Buy %</th>' +
+      '</tr></thead><tbody>' + trs + '</tbody></table>' +
+      '<p class="hint">A strategy that looks great on <em>train</em> but collapses on <em>test</em> ' +
+        'is likely curve-fitted. Prefer configs whose test ROI stays positive and roughly in line with train ROI.</p>';
+  } catch (e) {
+    out.innerHTML = '<div class="warning">Optimizer failed: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   Top-5 ranking
+   ========================================================================= */
+async function runRanking() {
+  const btn = document.getElementById("load-rank");
+  const prog = document.getElementById("rank-progress");
+  const target = document.getElementById("rank-results");
+  const note = document.getElementById("rank-note");
+  btn.disabled = true;
+
+  const entries = Object.entries(ALL_ASSETS);
+  const results = {};
+
+  try {
+    for (let i = 0; i < entries.length; i++) {
+      const [name, tk] = entries[i];
+      prog.textContent = "Fetching " + (i + 1) + "/" + entries.length + ": " + tk + "…";
+      try {
+        const data = await getData(tk, state.daysBack);
+        if (!data || data.close.length < 2) continue;
+
+        let ind = state.indicator;
+        let params = state.params;
+        if (ind === "Fear & Greed" && !isCrypto(tk)) { ind = "none"; params = {}; }
+
+        const fng = ind === "Fear & Greed" ? await loadFearGreed() : null;
+        const { signal } = computeSignal(data, ind, params, fng);
+        const sim = simulateDCA(data, state.dailyAmount, signal);
+        const last = data.close.length - 1;
+
+        if (sim.buyCount[last] === 0) continue;
+
+        results[name] = {
+          ticker: tk,
+          roi: sim.roiPct[last],
+          value: sim.portfolioValue[last],
+          invested: sim.totalInvested[last],
+          buys: sim.buyCount[last],
+          days: data.close.length,
+          ind
+        };
+      } catch (e) {
+        console.warn("Skipping", tk, e);
+      }
+      await sleep(120);
+    }
+
+    const ranked = Object.entries(results)
+      .sort((a, b) => b[1].roi - a[1].roi)
+      .slice(0, 5);
+
+    if (!ranked.length) {
+      target.innerHTML = '<div class="warning">No asset triggered a buy under this config in the chosen window. ' +
+        'Loosen the threshold or extend the look-back period.</div>';
+      return;
+    }
+
+    const currentTicker = getEffectiveTicker();
+    const trs = ranked.map(([name, d], i) => {
+      const cls = d.ticker === currentTicker ? ' class="highlight"' : "";
+      return "<tr" + cls + ">" +
+        "<td>" + (i + 1) + "</td>" +
+        "<td>" + name + "</td>" +
+        "<td>" + d.ticker + "</td>" +
+        "<td>" + d.ind + "</td>" +
+        "<td>" + d.roi.toFixed(2) + "%</td>" +
+        "<td>$" + fmt(d.value, 2) + "</td>" +
+        "<td>$" + fmt(d.invested, 2) + "</td>" +
+        "<td>" + d.buys + " / " + d.days + "</td>" +
+        "</tr>";
+    }).join("");
+
+    target.innerHTML =
+      '<table class="data-table"><thead><tr>' +
+        '<th>Rank</th><th>Asset</th><th>Ticker</th><th>Indicator</th>' +
+        '<th>ROI %</th><th>Portfolio Value</th><th>Total Invested</th><th>Buy Days</th>' +
+      '</tr></thead><tbody>' + trs + '</tbody></table>';
+
+    if (state.indicator === "Fear & Greed") note.classList.remove("hidden");
+    else note.classList.add("hidden");
+  } catch (e) {
+    target.innerHTML = '<div class="warning">Ranking failed: ' + e.message + '</div>';
+  } finally {
+    prog.textContent = "";
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   Initialisation
+   ========================================================================= */
+async function init() {
+  // Category select
+  const catSel = document.getElementById("category");
+  Object.keys(ASSET_CATALOGUE).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    catSel.appendChild(o);
+  });
+  populateAssetSelect(catSel.value);
+
+  // Initial state from inputs
+  state.daysBack = Number(document.getElementById("days-back").value);
+  state.dailyAmount = Number(document.getElementById("daily-amount").value);
+  state.splitPct = Number(document.getElementById("split").value);
+
+  // Load Fear & Greed availability
+  await loadFearGreed();
+  fngAvailable = !!(fngMap && fngMap.size > 0);
+
+  // Build indicator selector + parameter sliders
+  updateIndicatorOptions();
+  updateIndicatorParams();
+
+  // ---- Listeners ----
+  catSel.addEventListener("change", () => {
+    populateAssetSelect(catSel.value);
+    onTickerChange();
+  });
+
+  document.getElementById("asset").addEventListener("change", onTickerChange);
+
+  const custom = document.getElementById("custom-ticker");
+  custom.addEventListener("change", onTickerChange);
+  custom.addEventListener("keydown", e => { if (e.key === "Enter") onTickerChange(); });
+
+  document.getElementById("daily-amount").addEventListener("change", e => {
+    let v = Number(e.target.value);
+    if (!isFinite(v) || v <= 0) v = 5;
+    if (v > 1000) v = 1000;
+    state.dailyAmount = v;
+    e.target.value = v;
+    render();
+  });
+
+  const daysSlider = document.getElementById("days-back");
+  const daysVal = document.getElementById("days-back-val");
+  daysSlider.addEventListener("input", () => {
+    daysVal.textContent = daysSlider.value;
+    state.daysBack = Number(daysSlider.value);
+  });
+  daysSlider.addEventListener("change", () => render());
+
+  const splitSlider = document.getElementById("split");
+  const splitVal = document.getElementById("split-val");
+  splitSlider.addEventListener("input", () => {
+    splitVal.textContent = splitSlider.value;
+    state.splitPct = Number(splitSlider.value);
+  });
+
+  document.getElementById("indicator").addEventListener("change", e => {
+    state.indicator = e.target.value;
+    updateIndicatorParams();
+    render();
+  });
+
+  document.getElementById("run-opt").addEventListener("click", runOptimizer);
+  document.getElementById("load-rank").addEventListener("click", runRanking);
+
+  // First paint
+  await render();
+}
+
+init();
+</script>
+</body>
+</html>
