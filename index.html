@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Daily $5 DCA Backtester + Auto-Optimizer</title>
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="plotly.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -25,7 +25,7 @@
     background: var(--bg); color: var(--text); line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
-  #app { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+  #app { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); min-height: 100vh; }
   #sidebar {
     background: var(--panel); border-right: 1px solid var(--border);
     padding: 20px 20px 40px; overflow-y: auto; height: 100vh;
@@ -48,6 +48,12 @@
   #sidebar select:focus, #sidebar input:focus { border-color: var(--accent); }
   #sidebar input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
   .range-val { color: var(--text); font-weight: 600; float: right; font-size: 13px; }
+  #sidebar .condition { margin-top: 12px; }
+  #sidebar .check-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text); margin: 0 0 2px; cursor: pointer;
+  }
+  #sidebar .check-row input { width: auto; margin: 0; accent-color: var(--accent); }
   button {
     background: var(--accent); color: #0e1117; border: none; padding: 11px 14px;
     border-radius: var(--radius); font-weight: 700; cursor: pointer;
@@ -57,10 +63,10 @@
   button:disabled { opacity: .55; cursor: not-allowed; }
   button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
   .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; overflow-x: hidden; }
+  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: hidden; }
   #main h2 { font-size: 22px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
   section.block { margin-bottom: 36px; }
-  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 0 0 22px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 22px; }
   .metric {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px 16px; min-width: 0;
@@ -71,7 +77,7 @@
   .metric .delta.pos { color: var(--accent); }
   .metric .delta.neg { color: var(--danger); }
   .metric .delta.off { color: var(--muted); }
-  #chart { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; overflow: hidden; }
+  #chart { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; overflow: hidden; width: 100%; min-width: 0; }
   .data-table {
     width: 100%; border-collapse: collapse; font-size: 13.5px;
     background: var(--panel); border: 1px solid var(--border);
@@ -87,6 +93,8 @@
   .data-table tbody tr:last-child td { border-bottom: none; }
   .data-table tbody tr:hover { background: rgba(255,255,255,.03); }
   .data-table tr.highlight td { background: #2e7d32; color: #fff; font-weight: 600; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
+  .table-scroll .data-table { border-radius: 0; }
   .success, .warning { border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; font-size: 14px; line-height: 1.5; }
   .success { background: rgba(0,204,150,.1); border: 1px solid rgba(0,204,150,.4); color: #b9f4e2; }
   .warning { background: rgba(239,85,59,.1); border: 1px solid rgba(239,85,59,.4); color: #ffc9bd; }
@@ -105,11 +113,6 @@
   details[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   details > .log-wrap { border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; }
   .hidden { display: none !important; }
-  #overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
-    align-items: center; justify-content: center; z-index: 1000; font-size: 16px; color: var(--text);
-  }
-  #overlay.show { display: flex; }
   .spinner {
     width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25);
     border-top-color: var(--accent); border-radius: 50%; display: inline-block;
@@ -124,14 +127,22 @@
     #app { grid-template-columns: 1fr; }
     #sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
     #main { padding: 22px 18px 50px; }
-    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  @media (max-width: 560px) { .metrics { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) {
+    #sidebar { padding: 16px 14px 24px; }
+    #main { padding: 18px 12px 40px; }
+    #main h2 { font-size: 18px; }
+    #chart { padding: 4px; }
+    .metrics { grid-template-columns: 1fr; }
+    .metric .value { font-size: 18px; }
+    .data-table { font-size: 12.5px; }
+    .data-table th, .data-table td { padding: 7px 9px; }
+    details > summary { font-size: 14px; padding: 10px 12px; }
+  }
 </style>
 </head>
 <body>
-
-<div id="overlay"><span class="spinner"></span><span>Loading…</span></div>
 
 <div id="app">
   <aside id="sidebar">
@@ -145,9 +156,6 @@
 
       <label for="asset">Choose an asset</label>
       <select id="asset"></select>
-
-      <label for="custom-ticker">Or enter a Yahoo Finance ticker</label>
-      <input id="custom-ticker" type="text" placeholder="e.g. AAPL" autocomplete="off" spellcheck="false">
 
       <label for="daily-amount">Daily amount ($)</label>
       <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
@@ -180,8 +188,7 @@
     <section>
       <h2>🏆 Ranking</h2>
       <p class="hint" style="margin-top:0">
-        Fetch data for every asset in the catalogue and rank them under the
-        current configuration. This performs many network requests.
+        Rank every bundled asset under the current configuration. Instant — no network requests.
       </p>
       <button id="load-rank" type="button" class="secondary">Load Top 5</button>
       <p id="rank-progress" class="hint"></p>
@@ -218,17 +225,18 @@
     </section>
 
     <footer class="footnote">
-      Data: Yahoo Finance. Fear &amp; Greed: alternative.me (crypto only).
+      Data: offline snapshot of Yahoo Finance daily prices through <span id="data-through">—</span>.
+      Fear &amp; Greed: alternative.me snapshot (crypto only).
       Train/test split is chronological (no shuffling) — the test set is the <em>future</em>
       relative to the train set, which is the correct way to validate a time-series strategy.
       Fees/slippage ignored. Past performance ≠ future results.
       <br>
-      Requests are routed through public CORS proxies so the browser can talk to Yahoo Finance.
-      If loading fails, a proxy may be temporarily unavailable — press the button again or reload.
+      No API keys, no CORS proxies, no network requests — everything runs from the bundled dataset.
     </footer>
   </main>
 </div>
 
+<script src="data.js"></script>
 <script>
 /* =========================================================================
    Asset catalogue
@@ -287,18 +295,46 @@ Object.values(ASSET_CATALOGUE).forEach(g => Object.assign(ALL_ASSETS, g));
    ========================================================================= */
 const INDICATORS = {
   "none":         { label: "No restriction (buy every day)", default: {} },
-  "RSI":          { label: "RSI",           default: { period: 14, threshold: 30 } },
-  "CCI":          { label: "CCI",           default: { period: 14, threshold: -100 } },
-  "MFI":          { label: "MFI",           default: { period: 14, threshold: 20 } },
-  "Fear & Greed": { label: "Fear & Greed",  default: { threshold: 25 }, cryptoOnly: true }
+  "RSI":          { label: "RSI",           default: { period: 14, lower: 30, upper: 70, useLower: false, useUpper: true } },
+  "CCI":          { label: "CCI",           default: { period: 14, lower: -100, upper: 100, useLower: false, useUpper: true } },
+  "MFI":          { label: "MFI",           default: { period: 14, lower: 20, upper: 80, useLower: false, useUpper: true } },
+  "Fear & Greed": { label: "Fear & Greed",  default: { lower: 25, upper: 75, useLower: false, useUpper: true }, cryptoOnly: true }
 };
 
+/* Each grid entry enables one condition at a time. Both-on is redundant
+   because the effective limit is simply the stricter of the two. */
 const GRIDS = {
   "none": [{}],
-  "RSI": (() => { const a=[]; [7,14,21].forEach(p => [20,25,30,35,40,45].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
-  "CCI": (() => { const a=[]; [7,14,20].forEach(p => [-250,-200,-150,-100,-50,0].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
-  "MFI": (() => { const a=[]; [7,14,21].forEach(p => [10,15,20,25,30,35].forEach(t => a.push({period:p, threshold:t}))); return a; })(),
-  "Fear & Greed": [10,15,20,25,30,40,50].map(t => ({ threshold: t }))
+  "RSI": (() => {
+    const a = [];
+    [7, 14, 21].forEach(p => {
+      [60, 65, 70, 75, 80].forEach(u => a.push({ period: p, upper: u, lower: 30, useLower: false, useUpper: true }));
+      [20, 25, 30, 35, 40, 45].forEach(l => a.push({ period: p, upper: 70, lower: l, useLower: true, useUpper: false }));
+    });
+    return a;
+  })(),
+  "CCI": (() => {
+    const a = [];
+    [7, 14, 20].forEach(p => {
+      [50, 100, 150, 200].forEach(u => a.push({ period: p, upper: u, lower: -100, useLower: false, useUpper: true }));
+      [-250, -200, -150, -100, -50, 0].forEach(l => a.push({ period: p, upper: 100, lower: l, useLower: true, useUpper: false }));
+    });
+    return a;
+  })(),
+  "MFI": (() => {
+    const a = [];
+    [7, 14, 21].forEach(p => {
+      [60, 70, 80, 90].forEach(u => a.push({ period: p, upper: u, lower: 20, useLower: false, useUpper: true }));
+      [10, 15, 20, 25, 30, 35].forEach(l => a.push({ period: p, upper: 80, lower: l, useLower: true, useUpper: false }));
+    });
+    return a;
+  })(),
+  "Fear & Greed": (() => {
+    const a = [];
+    [50, 60, 75, 90].forEach(u => a.push({ upper: u, lower: 25, useLower: false, useUpper: true }));
+    [10, 15, 20, 25, 30, 40, 50].forEach(l => a.push({ upper: 75, lower: l, useLower: true, useUpper: false }));
+    return a;
+  })()
 };
 
 /* =========================================================================
@@ -314,16 +350,11 @@ const state = {
 };
 
 let fngMap = null;          // Map "YYYY-MM-DD" -> int
-let fngPromise = null;
 let fngAvailable = false;
-
-const dataCache = new Map(); // key `${ticker}|${daysBack}` -> data | Promise
 
 /* =========================================================================
    Utilities
    ========================================================================= */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
 function fmt(x, d) {
   if (x === null || x === undefined || Number.isNaN(x)) return "—";
   return Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -341,134 +372,40 @@ function isCrypto(ticker) {
   return ["-USD","-USDT","-EUR","-BTC"].some(s => t.endsWith(s));
 }
 function getEffectiveTicker() {
-  const custom = document.getElementById("custom-ticker").value.trim().toUpperCase();
-  if (custom) return custom;
   const sel = document.getElementById("asset");
   return sel.value || "BTC-USD";
 }
-function showOverlay(on) {
-  document.getElementById("overlay").classList.toggle("show", !!on);
-}
-
 /* =========================================================================
-   Network layer
+   Data layer — bundled offline snapshot (see data.js)
    ========================================================================= */
-const PROXIES = [
-  { name: "allorigins", wrap: u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u) },
-  { name: "codetabs",   wrap: u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u) },
-  { name: "corsproxy",  wrap: u => "https://corsproxy.io/?url=" + encodeURIComponent(u) }
-];
-
-async function fetchWithTimeout(url, ms = 20000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { signal: ctrl.signal, cache: "no-store" });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function fetchJSONWithProxy(url) {
-  let lastErr = null;
-  for (const p of PROXIES) {
-    try {
-      const r = await fetchWithTimeout(p.wrap(url));
-      if (!r.ok) throw new Error(p.name + ": HTTP " + r.status);
-      const text = await r.text();
-      return JSON.parse(text);
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("All CORS proxies failed");
-}
-
-/* ---- Fear & Greed (alternative.me supports CORS directly) ---- */
-async function loadFearGreed() {
+function loadFearGreed() {
   if (fngMap) return fngMap;
-  if (fngPromise) return fngPromise;
-  fngPromise = (async () => {
-    try {
-      const r = await fetchWithTimeout("https://api.alternative.me/fng/?limit=0", 15000);
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const json = await r.json();
-      const m = new Map();
-      (json.data || []).forEach(row => {
-        const d = new Date(parseInt(row.timestamp, 10) * 1000).toISOString().slice(0, 10);
-        m.set(d, parseInt(row.value, 10));
-      });
-      fngMap = m;
-      return m;
-    } catch (e) {
-      fngMap = new Map();
-      return fngMap;
-    } finally {
-      fngPromise = null;
-    }
-  })();
-  return fngPromise;
+  const m = new Map();
+  if (typeof FNG_DATA !== "undefined") {
+    Object.entries(FNG_DATA).forEach(([d, v]) => m.set(d, v));
+  }
+  fngMap = m;
+  return m;
 }
 
-/* ---- Yahoo Finance OHLCV ---- */
-async function fetchOHLCV(ticker, daysBack) {
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - daysBack * 86400;
-  const url =
-    "https://query1.finance.yahoo.com/v8/finance/chart/" +
-    encodeURIComponent(ticker) +
-    "?period1=" + start + "&period2=" + end +
-    "&interval=1d&includeAdjustedClose=true";
-
-  const json = await fetchJSONWithProxy(url);
-  const res = json && json.chart && json.chart.result && json.chart.result[0];
-  if (!res || !res.timestamp) throw new Error("No data returned for " + ticker);
-
-  const q = res.indicators.quote[0];
-  const adj = res.indicators.adjclose && res.indicators.adjclose[0]
-            ? res.indicators.adjclose[0].adjclose : null;
-
-  const rows = [];
-  for (let i = 0; i < res.timestamp.length; i++) {
-    const c = q.close[i];
-    if (c == null || q.high[i] == null || q.low[i] == null) continue;
-    let ratio = 1;
-    if (adj && adj[i] != null && c) ratio = adj[i] / c;
-    rows.push({
-      date: new Date(res.timestamp[i] * 1000).toISOString().slice(0, 10),
-      open: q.open[i] == null ? NaN : q.open[i] * ratio,
-      high: q.high[i] * ratio,
-      low: q.low[i] * ratio,
-      close: c * ratio,
-      volume: q.volume[i] == null ? 0 : q.volume[i]
-    });
+/* ---- Daily OHLCV from the bundled snapshot ---- */
+function getData(ticker, daysBack) {
+  const raw = typeof MARKET_DATA !== "undefined" ? MARKET_DATA[ticker] : null;
+  if (!raw || !raw.d || !raw.d.length) {
+    throw new Error("ticker " + ticker + " is not in the bundled dataset");
   }
-  if (!rows.length) throw new Error("No usable rows for " + ticker);
-  rows.sort((a, b) => a.date < b.date ? -1 : 1);
-
+  const n = raw.d.length;
+  const endMs = Date.parse(raw.d[n - 1] + "T00:00:00Z");
+  const cutoff = new Date(endMs - daysBack * 86400000).toISOString().slice(0, 10);
+  let start = 0;
+  while (start < n && raw.d[start] < cutoff) start++;
   return {
-    dates: rows.map(r => r.date),
-    open:  rows.map(r => r.open),
-    high:  rows.map(r => r.high),
-    low:   rows.map(r => r.low),
-    close: rows.map(r => r.close),
-    volume:rows.map(r => r.volume)
+    dates: raw.d.slice(start),
+    high:  raw.h.slice(start),
+    low:   raw.l.slice(start),
+    close: raw.c.slice(start),
+    volume:raw.v.slice(start)
   };
-}
-
-async function getData(ticker, daysBack) {
-  const key = ticker + "|" + daysBack;
-  if (dataCache.has(key)) return dataCache.get(key);
-  const p = fetchOHLCV(ticker, daysBack);
-  dataCache.set(key, p);
-  try {
-    const d = await p;
-    dataCache.set(key, d);
-    return d;
-  } catch (e) {
-    dataCache.delete(key);
-    throw e;
-  }
 }
 
 /* =========================================================================
@@ -561,7 +498,11 @@ function computeSignal(data, indicator, params, fng) {
   }
 
   for (let i = 0; i < n; i++) {
-    signal[i] = values[i] !== null && values[i] < params.threshold;
+    const v = values[i];
+    if (v === null) { signal[i] = false; continue; }
+    const okLower = !params.useLower || v < params.lower;
+    const okUpper = !params.useUpper || v < params.upper;
+    signal[i] = okLower && okUpper;
   }
   return { signal, values };
 }
@@ -600,7 +541,6 @@ function simulateDCA(data, dailyAmount, signal) {
 function sliceData(data, start, end) {
   return {
     dates: data.dates.slice(start, end),
-    open:  data.open.slice(start, end),
     high:  data.high.slice(start, end),
     low:   data.low.slice(start, end),
     close: data.close.slice(start, end),
@@ -633,8 +573,11 @@ function evaluateConfig(data, dailyAmount, signal, splitRatio) {
 
 function fmtParams(indicator, params) {
   if (!params || Object.keys(params).length === 0) return "No restriction";
-  if (indicator === "Fear & Greed") return "F&G < " + params.threshold;
-  return indicator + "(" + params.period + ") < " + params.threshold;
+  const base = indicator === "Fear & Greed" ? "F&G" : indicator + "(" + params.period + ")";
+  const parts = [];
+  if (params.useLower) parts.push(base + " < " + params.lower + " (oversold)");
+  if (params.useUpper) parts.push(base + " < " + params.upper + " (not overbought)");
+  return parts.length ? parts.join(" & ") : "Buy every day";
 }
 
 function gridSearchAll(data, dailyAmount, fng, splitRatio, crypto) {
@@ -703,9 +646,10 @@ function renderChart(data, sim, signal, values) {
     name: "Invested", line: { color: "#EF553B", width: 2, dash: "dash" }
   });
 
+  const narrow = window.matchMedia("(max-width: 700px)").matches;
   const layout = {
     template: "plotly_dark",
-    height: hasInd ? 700 : 520,
+    height: hasInd ? (narrow ? 540 : 700) : (narrow ? 380 : 520),
     margin: { l: 60, r: 40, t: 30, b: 40 },
     hovermode: "x unified",
     showlegend: true,
@@ -741,25 +685,36 @@ function renderChart(data, sim, signal, values) {
       });
     }
 
-    const thr = state.params.threshold;
-    if (thr !== undefined) {
+    if (state.params.useUpper && state.params.upper !== undefined) {
       layout.shapes.push({
         type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
-        y0: thr, y1: thr, line: { color: "#EF553B", dash: "dash", width: 1.5 }
+        y0: state.params.upper, y1: state.params.upper,
+        line: { color: "#EF553B", dash: "dash", width: 1.5 }
       });
       layout.annotations.push({
-        xref: "paper", x: 1, yref: "y2", y: thr, text: "Buy < " + thr,
+        xref: "paper", x: 1, yref: "y2", y: state.params.upper,
+        text: "Don't buy > " + state.params.upper,
         showarrow: false, xanchor: "right", yanchor: "bottom",
         font: { color: "#EF553B", size: 11 }
       });
     }
 
-    if (state.indicator === "RSI") {
-      layout.yaxis2.range = [0, 100];
-      [70, 30].forEach(y => layout.shapes.push({
+    if (state.params.useLower && state.params.lower !== undefined) {
+      layout.shapes.push({
         type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2",
-        y0: y, y1: y, line: { color: "#888", dash: "dot", width: 1 }
-      }));
+        y0: state.params.lower, y1: state.params.lower,
+        line: { color: "#00CC96", dash: "dash", width: 1.5 }
+      });
+      layout.annotations.push({
+        xref: "paper", x: 1, yref: "y2", y: state.params.lower,
+        text: "Buy < " + state.params.lower,
+        showarrow: false, xanchor: "right", yanchor: "bottom",
+        font: { color: "#00CC96", size: 11 }
+      });
+    }
+
+    if (state.indicator === "RSI" || state.indicator === "Fear & Greed") {
+      layout.yaxis2.range = [0, 100];
     }
   } else {
     layout.yaxis = { title: "Value ($)", gridcolor: "#2d3441" };
@@ -832,8 +787,7 @@ async function render() {
     hl.forEach(tr => tr.classList.remove("highlight"));
   } catch (e) {
     if (token !== renderToken) return;
-    showError("Could not load data for " + state.ticker + " — " + e.message +
-              ". Public CORS proxies may be temporarily unavailable; try again or reload.");
+    showError("Could not load " + state.ticker + " — " + e.message + ".");
   }
 }
 
@@ -898,7 +852,31 @@ function makeRange(labelText, min, max, value, step, onInput) {
   return wrap;
 }
 
-function updateIndicatorParams() {
+function makeCondition(labelText, min, max, value, step, checked, onInput, onToggle) {
+  const wrap = document.createElement("div");
+  wrap.className = "condition";
+
+  const toggle = document.createElement("label");
+  toggle.className = "check-row";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = checked;
+  toggle.appendChild(cb);
+  toggle.appendChild(document.createTextNode(labelText));
+  wrap.appendChild(toggle);
+
+  const range = makeRange("", min, max, value, step, onInput);
+  range.style.display = checked ? "" : "none";
+  wrap.appendChild(range);
+
+  cb.addEventListener("change", () => {
+    range.style.display = cb.checked ? "" : "none";
+    onToggle(cb.checked);
+  });
+  return wrap;
+}
+
+function updateIndicatorParams(override) {
   const container = document.getElementById("indicator-params");
   const hint = document.getElementById("indicator-hint");
   container.innerHTML = "";
@@ -909,8 +887,8 @@ function updateIndicatorParams() {
     return;
   }
 
-  const def = INDICATORS[state.indicator].default;
-  state.params = {};
+  const def = Object.assign({}, INDICATORS[state.indicator].default, override || {});
+  state.params = { useLower: !!def.useLower, useUpper: !!def.useUpper };
 
   if ("period" in def) {
     state.params.period = def.period;
@@ -920,21 +898,57 @@ function updateIndicatorParams() {
     }));
   }
 
-  if ("threshold" in def) {
-    let lo, hi, step;
-    if (state.indicator === "RSI") { lo = 10; hi = 60; step = 1; }
-    else if (state.indicator === "CCI") { lo = -300; hi = 100; step = 10; }
-    else if (state.indicator === "MFI") { lo = 5; hi = 50; step = 1; }
-    else { lo = 5; hi = 60; step = 1; }
-    state.params.threshold = def.threshold;
-    container.appendChild(makeRange("Buy when below", lo, hi, def.threshold, step, v => {
-      state.params.threshold = v;
-      render();
-    }));
+  let lowerLo, lowerHi, lowerStep, upperLo, upperHi, upperStep;
+  if (state.indicator === "RSI") {
+    lowerLo = 10; lowerHi = 60; lowerStep = 1;
+    upperLo = 50; upperHi = 90; upperStep = 1;
+  } else if (state.indicator === "CCI") {
+    lowerLo = -300; lowerHi = 100; lowerStep = 10;
+    upperLo = 50; upperHi = 250; upperStep = 10;
+  } else if (state.indicator === "MFI") {
+    lowerLo = 5; lowerHi = 50; lowerStep = 1;
+    upperLo = 50; upperHi = 95; upperStep = 1;
+  } else {
+    lowerLo = 5; lowerHi = 60; lowerStep = 1;
+    upperLo = 40; upperHi = 95; upperStep = 1;
   }
 
-  hint.textContent = "Default for " + state.indicator + ": " +
-    Object.entries(def).map(([k, v]) => k + "=" + v).join(", ");
+  state.params.lower = def.lower;
+  state.params.upper = def.upper;
+
+  function updateHint() {
+    const sym = state.indicator === "Fear & Greed" ? "F&G" : state.indicator;
+    let text = "No filter: buys every day.";
+    if (state.params.useLower && state.params.useUpper) {
+      text = "Buys when " + sym + " < " + state.params.lower + " and < " + state.params.upper + ".";
+    } else if (state.params.useLower) {
+      text = "Buys only when " + sym + " < " + state.params.lower + ".";
+    } else if (state.params.useUpper) {
+      text = "Buys every day unless " + sym + " > " + state.params.upper + ".";
+    }
+    hint.textContent = text;
+  }
+
+  container.appendChild(makeCondition(
+    "Buy when below", lowerLo, lowerHi, def.lower, lowerStep, state.params.useLower,
+    v => { state.params.lower = v; updateHint(); render(); },
+    on => { state.params.useLower = on; updateHint(); render(); }
+  ));
+
+  container.appendChild(makeCondition(
+    "Don't buy when above", upperLo, upperHi, def.upper, upperStep, state.params.useUpper,
+    v => { state.params.upper = v; updateHint(); render(); },
+    on => { state.params.useUpper = on; updateHint(); render(); }
+  ));
+
+  updateHint();
+}
+
+function applyBestConfig(best) {
+  state.indicator = best.indicator;
+  updateIndicatorOptions();
+  updateIndicatorParams(best.params);
+  render();
 }
 
 async function onTickerChange() {
@@ -968,6 +982,8 @@ async function runOptimizer() {
     const pool = active.length ? active : rows;
     const best = pool.slice().sort((a, b) => b.train_roi - a.train_roi)[0];
 
+    applyBestConfig(best);
+
     const diff = best.test_roi - baseline.test_roi;
     const sign = diff >= 0 ? "+" : "";
     const diffColor = diff >= 0 ? "var(--accent)" : "var(--danger)";
@@ -997,7 +1013,7 @@ async function runOptimizer() {
         '<div class="metric"><div class="label">Buy Frequency</div>' +
           '<div class="value" style="font-size:18px">' + best.train_buy_pct.toFixed(1) + '% / ' + best.test_buy_pct.toFixed(1) + '%</div></div>' +
       '</div>' +
-      '<div class="success"><strong>Best config:</strong> <code>' + best.label + '</code><br>' +
+      '<div class="success"><strong>Best config:</strong> <code>' + best.label + '</code> — applied to the controls above.<br>' +
         'Chosen on train set (' + state.splitPct + '% of data). ' +
         'Baseline (buy every day) → train <strong>' + baseline.train_roi.toFixed(2) + '%</strong>, ' +
         'test <strong>' + baseline.test_roi.toFixed(2) + '%</strong>.</div>' +
@@ -1006,10 +1022,10 @@ async function runOptimizer() {
           'This is classic overfitting — treat this indicator rule with caution.</div>'
         : '') +
       '<h3 style="font-size:15px;margin:22px 0 10px">Top 20 configs (sorted by train ROI)</h3>' +
-      '<table class="data-table"><thead><tr>' +
+      '<div class="table-scroll"><table class="data-table"><thead><tr>' +
         '<th>Strategy</th><th>Indicator</th><th>Train ROI %</th><th>Test ROI %</th>' +
         '<th>Train Buy %</th><th>Test Buy %</th>' +
-      '</tr></thead><tbody>' + trs + '</tbody></table>' +
+      '</tr></thead><tbody>' + trs + '</tbody></table></div>' +
       '<p class="hint">A strategy that looks great on <em>train</em> but collapses on <em>test</em> ' +
         'is likely curve-fitted. Prefer configs whose test ROI stays positive and roughly in line with train ROI.</p>';
   } catch (e) {
@@ -1035,7 +1051,7 @@ async function runRanking() {
   try {
     for (let i = 0; i < entries.length; i++) {
       const [name, tk] = entries[i];
-      prog.textContent = "Fetching " + (i + 1) + "/" + entries.length + ": " + tk + "…";
+      prog.textContent = "Ranking " + (i + 1) + "/" + entries.length + ": " + tk + "…";
       try {
         const data = await getData(tk, state.daysBack);
         if (!data || data.close.length < 2) continue;
@@ -1063,7 +1079,6 @@ async function runRanking() {
       } catch (e) {
         console.warn("Skipping", tk, e);
       }
-      await sleep(120);
     }
 
     const ranked = Object.entries(results)
@@ -1092,10 +1107,10 @@ async function runRanking() {
     }).join("");
 
     target.innerHTML =
-      '<table class="data-table"><thead><tr>' +
+      '<div class="table-scroll"><table class="data-table"><thead><tr>' +
         '<th>Rank</th><th>Asset</th><th>Ticker</th><th>Indicator</th>' +
         '<th>ROI %</th><th>Portfolio Value</th><th>Total Invested</th><th>Buy Days</th>' +
-      '</tr></thead><tbody>' + trs + '</tbody></table>';
+      '</tr></thead><tbody>' + trs + '</tbody></table></div>';
 
     if (state.indicator === "Fear & Greed") note.classList.remove("hidden");
     else note.classList.add("hidden");
@@ -1125,9 +1140,17 @@ async function init() {
   state.dailyAmount = Number(document.getElementById("daily-amount").value);
   state.splitPct = Number(document.getElementById("split").value);
 
-  // Load Fear & Greed availability
+  // Load bundled Fear & Greed history
   await loadFearGreed();
   fngAvailable = !!(fngMap && fngMap.size > 0);
+
+  // Show the snapshot date in the footer
+  if (typeof MARKET_DATA !== "undefined") {
+    const first = MARKET_DATA[Object.keys(MARKET_DATA)[0]];
+    if (first && first.d.length) {
+      document.getElementById("data-through").textContent = first.d[first.d.length - 1];
+    }
+  }
 
   // Build indicator selector + parameter sliders
   updateIndicatorOptions();
@@ -1140,10 +1163,6 @@ async function init() {
   });
 
   document.getElementById("asset").addEventListener("change", onTickerChange);
-
-  const custom = document.getElementById("custom-ticker");
-  custom.addEventListener("change", onTickerChange);
-  custom.addEventListener("keydown", e => { if (e.key === "Enter") onTickerChange(); });
 
   document.getElementById("daily-amount").addEventListener("change", e => {
     let v = Number(e.target.value);
@@ -1177,6 +1196,14 @@ async function init() {
 
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
   document.getElementById("load-rank").addEventListener("click", runRanking);
+
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (window.Plotly) Plotly.Plots.resize("chart");
+    }, 150);
+  });
 
   // First paint
   await render();
