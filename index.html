@@ -161,7 +161,7 @@
       <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
 
       <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
-      <input id="days-back" type="range" min="60" max="1825" step="30" value="730">
+      <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
     </section>
 
     <section>
@@ -255,16 +255,122 @@ const ASSET_CATALOGUE = {
     "Litecoin (LTC-USD)": "LTC-USD",
     "XRP (XRP-USD)": "XRP-USD"
   },
-  "── Stocks ──": {
+  "── Technology ──": {
     "Apple (AAPL)": "AAPL",
     "Microsoft (MSFT)": "MSFT",
-    "Tesla (TSLA)": "TSLA",
-    "Amazon (AMZN)": "AMZN",
     "NVIDIA (NVDA)": "NVDA",
     "Alphabet (GOOGL)": "GOOGL",
     "Meta (META)": "META",
+    "Tesla (TSLA)": "TSLA",
+    "Advanced Micro Devices (AMD)": "AMD",
+    "Broadcom (AVGO)": "AVGO",
+    "Intel (INTC)": "INTC",
+    "Qualcomm (QCOM)": "QCOM",
+    "Micron (MU)": "MU",
+    "TSMC (TSM)": "TSM",
+    "ASML (ASML)": "ASML",
+    "Oracle (ORCL)": "ORCL",
+    "Salesforce (CRM)": "CRM",
+    "Adobe (ADBE)": "ADBE",
+    "Netflix (NFLX)": "NFLX",
+    "Disney (DIS)": "DIS"
+  },
+  "── Pharma & Healthcare ──": {
+    "Pfizer (PFE)": "PFE",
+    "Johnson & Johnson (JNJ)": "JNJ",
+    "Merck (MRK)": "MRK",
+    "Eli Lilly (LLY)": "LLY",
+    "AbbVie (ABBV)": "ABBV",
+    "Bristol Myers Squibb (BMY)": "BMY",
+    "Amgen (AMGN)": "AMGN",
+    "Gilead Sciences (GILD)": "GILD",
+    "Thermo Fisher (TMO)": "TMO",
+    "Abbott Laboratories (ABT)": "ABT",
+    "UnitedHealth (UNH)": "UNH",
+    "CVS Health (CVS)": "CVS",
+    "Moderna (MRNA)": "MRNA"
+  },
+  "── Financials ──": {
+    "JPMorgan Chase (JPM)": "JPM",
+    "Bank of America (BAC)": "BAC",
+    "Wells Fargo (WFC)": "WFC",
+    "Citigroup (C)": "C",
+    "Goldman Sachs (GS)": "GS",
+    "Morgan Stanley (MS)": "MS",
+    "Visa (V)": "V",
+    "Mastercard (MA)": "MA",
+    "BlackRock (BLK)": "BLK",
+    "Berkshire Hathaway (BRK-B)": "BRK-B"
+  },
+  "── Energy ──": {
+    "Exxon Mobil (XOM)": "XOM",
+    "Chevron (CVX)": "CVX",
+    "ConocoPhillips (COP)": "COP",
+    "Schlumberger (SLB)": "SLB",
+    "EOG Resources (EOG)": "EOG",
+    "Occidental Petroleum (OXY)": "OXY",
+    "Phillips 66 (PSX)": "PSX"
+  },
+  "── Consumer ──": {
+    "Amazon (AMZN)": "AMZN",
+    "Walmart (WMT)": "WMT",
+    "Costco (COST)": "COST",
+    "Coca-Cola (KO)": "KO",
+    "PepsiCo (PEP)": "PEP",
+    "Procter & Gamble (PG)": "PG",
+    "McDonald's (MCD)": "MCD",
+    "Nike (NKE)": "NKE",
+    "Starbucks (SBUX)": "SBUX",
+    "Home Depot (HD)": "HD",
+    "Lowe's (LOW)": "LOW"
+  },
+  "── Industrials & Defense ──": {
+    "Caterpillar (CAT)": "CAT",
+    "Boeing (BA)": "BA",
+    "GE Aerospace (GE)": "GE",
+    "Honeywell (HON)": "HON",
+    "Lockheed Martin (LMT)": "LMT",
+    "RTX (RTX)": "RTX",
+    "UPS (UPS)": "UPS",
+    "Deere (DE)": "DE",
+    "Union Pacific (UNP)": "UNP"
+  },
+  "── Autos & EV ──": {
+    "Ford (F)": "F",
+    "General Motors (GM)": "GM",
+    "Rivian (RIVN)": "RIVN",
+    "Lucid (LCID)": "LCID"
+  },
+  "── Utilities & REITs ──": {
+    "NextEra Energy (NEE)": "NEE",
+    "Duke Energy (DUK)": "DUK",
+    "Southern Company (SO)": "SO",
+    "American Tower (AMT)": "AMT",
+    "Prologis (PLD)": "PLD",
+    "Realty Income (O)": "O"
+  },
+  "── ETFs ──": {
     "S&P 500 ETF (SPY)": "SPY",
-    "Nasdaq 100 ETF (QQQ)": "QQQ"
+    "Nasdaq 100 ETF (QQQ)": "QQQ",
+    "Total US Market ETF (VTI)": "VTI",
+    "Russell 2000 ETF (IWM)": "IWM",
+    "Dow Jones ETF (DIA)": "DIA",
+    "Emerging Markets ETF (VWO)": "VWO",
+    "MSCI Emerging Markets ETF (EEM)": "EEM",
+    "Energy Sector ETF (XLE)": "XLE",
+    "Financials Sector ETF (XLF)": "XLF",
+    "Healthcare Sector ETF (XLV)": "XLV",
+    "Technology Sector ETF (XLK)": "XLK",
+    "Utilities Sector ETF (XLU)": "XLU",
+    "Consumer Staples ETF (XLP)": "XLP",
+    "Industrials Sector ETF (XLI)": "XLI",
+    "Consumer Discretionary ETF (XLY)": "XLY",
+    "Gold ETF (GLD)": "GLD",
+    "Silver ETF (SLV)": "SLV",
+    "Oil ETF (USO)": "USO",
+    "20+ Year Treasury ETF (TLT)": "TLT",
+    "Investment Grade Bond ETF (LQD)": "LQD",
+    "High Yield Bond ETF (HYG)": "HYG"
   },
   "── Commodities ──": {
     "Gold (GC=F)": "GC=F",
@@ -376,6 +482,19 @@ function getEffectiveTicker() {
   const sel = document.getElementById("asset");
   return sel.value || "BTC-USD";
 }
+function updateDaysSliderMax() {
+  const maxDays = pairHistoryDays(getEffectiveTicker());
+  if (!maxDays) return;
+  const slider = document.getElementById("days-back");
+  const value = Number(slider.value);
+  slider.max = maxDays;
+  if (value > maxDays) {
+    slider.value = maxDays;
+    state.daysBack = maxDays;
+    document.getElementById("days-back-val").textContent = maxDays;
+  }
+}
+
 /* =========================================================================
    Data layer — bundled offline snapshot (see data.js)
    ========================================================================= */
@@ -387,6 +506,15 @@ function loadFearGreed() {
   }
   fngMap = m;
   return m;
+}
+
+/* ---- How many calendar days of history the bundled snapshot has for a ticker ---- */
+function pairHistoryDays(ticker) {
+  const raw = typeof MARKET_DATA !== "undefined" ? MARKET_DATA[ticker] : null;
+  if (!raw || !raw.d || !raw.d.length) return null;
+  const first = Date.parse(raw.d[0] + "T00:00:00Z");
+  const last = Date.parse(raw.d[raw.d.length - 1] + "T00:00:00Z");
+  return Math.ceil((last - first) / 86400000) + 1;
 }
 
 /* ---- Daily OHLCV from the bundled snapshot ---- */
@@ -745,7 +873,7 @@ function renderChart(data, sim, signal, values) {
     }
   }
 
-  Plotly.react("chart", traces, layout, { responsive: true, displaylogo: false });
+  Plotly.react("chart", traces, layout, { displaylogo: false });
 }
 
 function renderLog(data, sim, signal) {
@@ -977,6 +1105,7 @@ function applyBestConfig(best) {
 
 async function onTickerChange() {
   state.ticker = getEffectiveTicker();
+  updateDaysSliderMax();
   await loadFearGreed();
   fngAvailable = !!(fngMap && fngMap.size > 0);
   updateIndicatorOptions();
@@ -1160,6 +1289,7 @@ async function init() {
   populateAssetSelect(catSel.value);
 
   // Initial state from inputs
+  updateDaysSliderMax();
   state.daysBack = Number(document.getElementById("days-back").value);
   state.dailyAmount = Number(document.getElementById("daily-amount").value);
   state.splitPct = Number(document.getElementById("split").value);
@@ -1221,13 +1351,16 @@ async function init() {
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
   document.getElementById("load-rank").addEventListener("click", runRanking);
 
-  let resizeTimer;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      if (window.Plotly) Plotly.Plots.resize("chart");
-    }, 150);
-  });
+  // Resize the plot by width only. Plotly's own responsive resize drops the
+  // chart's fixed layout height, which squashes it to a thin strip.
+  let chartWidth = 0;
+  new ResizeObserver(entries => {
+    const el = document.getElementById("chart");
+    const w = Math.round(entries[0].contentRect.width);
+    if (!w || w === chartWidth || !el.classList.contains("js-plotly-plot")) return;
+    chartWidth = w;
+    Plotly.relayout(el, { width: w });
+  }).observe(document.getElementById("chart"));
 
   // First paint
   await render();
