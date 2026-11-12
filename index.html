@@ -25,35 +25,43 @@
     background: var(--bg); color: var(--text); line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
-  #app { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); min-height: 100vh; }
-  #sidebar {
-    background: var(--panel); border-right: 1px solid var(--border);
-    padding: 20px 20px 40px; overflow-y: auto; height: 100vh;
-    position: sticky; top: 0;
+  #app { min-height: 100vh; }
+  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: hidden; margin: 0 auto; }
+  .settings-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 22px;
   }
-  #sidebar h1 { font-size: 20px; margin: 0 0 2px; }
-  #sidebar .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
-  #sidebar section { margin-bottom: 26px; }
-  #sidebar h2 {
+  .settings-card h2 {
     font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
     margin: 0 0 12px; color: var(--accent); font-weight: 700;
   }
-  #sidebar label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5px; }
-  #sidebar label:first-of-type { margin-top: 0; }
-  #sidebar select, #sidebar input[type="text"], #sidebar input[type="number"] {
+  .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
+  .settings-grid label, .specific-settings label {
+    display: block; font-size: 13px; color: var(--muted); margin: 0 0 5px;
+  }
+  .settings-grid select, .settings-grid input[type="number"],
+  .specific-settings select, .specific-settings input[type="text"],
+  .specific-settings input[type="number"] {
     width: 100%; padding: 8px 10px; background: var(--panel-2);
     border: 1px solid var(--border); border-radius: var(--radius);
     color: var(--text); font-size: 14px; outline: none; font-family: inherit;
   }
-  #sidebar select:focus, #sidebar input:focus { border-color: var(--accent); }
-  #sidebar input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
-  .range-val { color: var(--text); font-weight: 600; float: right; font-size: 13px; }
-  #sidebar .condition { margin-top: 12px; }
-  #sidebar .check-row {
+  .settings-grid select:focus, .settings-grid input:focus,
+  .specific-settings select:focus, .specific-settings input:focus { border-color: var(--accent); }
+  .settings-grid input[type="range"], .specific-settings input[type="range"] {
+    width: 100%; accent-color: var(--accent); margin-top: 4px;
+  }
+  .specific-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .specific-settings > section { margin: 0; }
+  .specific-settings h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; color: var(--accent); }
+  .specific-settings .asset-selection { grid-column: 1 / -1; }
+  .specific-settings .condition { margin-top: 12px; }
+  .specific-settings .check-row {
     display: flex; align-items: center; gap: 8px;
     font-size: 13px; color: var(--text); margin: 0 0 2px; cursor: pointer;
   }
-  #sidebar .check-row input { width: auto; margin: 0; accent-color: var(--accent); }
+  .specific-settings .check-row input { width: auto; margin: 0; accent-color: var(--accent); }
+  .range-val { color: var(--text); font-weight: 600; float: right; font-size: 13px; }
   button {
     background: var(--accent); color: #0e1117; border: none; padding: 11px 14px;
     border-radius: var(--radius); font-weight: 700; cursor: pointer;
@@ -63,10 +71,35 @@
   button:disabled { opacity: .55; cursor: not-allowed; }
   button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
   .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: hidden; }
+  .analysis-tabs {
+    display: flex; gap: 8px; border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .analysis-tab {
+    width: auto; flex: 1; padding: 10px 16px; color: var(--muted);
+    background: transparent; border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 2px solid transparent;
+  }
+  .analysis-tab[aria-selected="true"] {
+    color: var(--text); background: var(--panel);
+    border-bottom-color: var(--accent);
+  }
+  .analysis-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #main h2 { font-size: 22px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
   section.block { margin-bottom: 36px; }
+  .analysis-title { font-size: 15px; margin: 22px 0 10px; }
+  .analysis-title:first-of-type { margin-top: 18px; }
   .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 22px; }
+  .general-chart-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px; margin-bottom: 28px;
+  }
+  .general-chart-card {
+    min-width: 0; overflow: hidden; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 12px 8px;
+  }
+  .general-chart-card h4 { margin: 0 0 4px; font-size: 14px; }
+  .general-chart { width: 100%; min-width: 0; }
   .metric {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px 16px; min-width: 0;
@@ -124,17 +157,17 @@
     color: var(--muted); font-size: 12.5px; line-height: 1.6;
   }
   @media (max-width: 980px) {
-    #app { grid-template-columns: 1fr; }
-    #sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
     #main { padding: 22px 18px 50px; }
     .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .general-chart-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 560px) {
-    #sidebar { padding: 16px 14px 24px; }
     #main { padding: 18px 12px 40px; }
     #main h2 { font-size: 18px; }
     #chart { padding: 4px; }
     .metrics { grid-template-columns: 1fr; }
+    .settings-grid, .specific-settings { grid-template-columns: 1fr; }
+    .specific-settings .asset-selection { grid-column: auto; }
     .metric .value { font-size: 18px; }
     .data-table { font-size: 12.5px; }
     .data-table th, .data-table td { padding: 7px 9px; }
@@ -145,57 +178,106 @@
 <body>
 
 <div id="app">
-  <aside id="sidebar">
-    <h1>📈 Daily $5 DCA</h1>
-    <p class="subtitle">Backtester + Auto-Optimizer</p>
-
-    <section>
-      <h2>⚙️ Settings</h2>
-      <label for="category">Asset category</label>
-      <select id="category"></select>
-
-      <label for="asset">Choose an asset</label>
-      <select id="asset"></select>
-
-      <label for="daily-amount">Daily amount ($)</label>
-      <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
-
-      <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
-      <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
-    </section>
-
-    <section>
-      <h2>🎛️ Entry Indicator</h2>
-      <label for="indicator">Indicator</label>
-      <select id="indicator"></select>
-      <div id="indicator-params"></div>
-      <p id="indicator-hint" class="hint"></p>
-    </section>
-
-    <section>
-      <h2>🔍 Auto-Optimizer</h2>
-      <p class="hint" style="margin-top:0">
-        Searches <strong>every indicator and config</strong> plus the
-        <em>no-restriction</em> baseline, using a train/test split to detect overfitting.
-      </p>
-      <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
-      <input id="split" type="range" min="50" max="85" step="5" value="70">
-      <div style="margin-top:14px">
-        <button id="run-opt" type="button">🚀 Find best config</button>
+  <main id="main">
+    <h1>📈 Daily $5 DCA Backtester</h1>
+    <section class="settings-card" aria-label="Shared analysis settings">
+      <h2>Shared settings</h2>
+      <div class="settings-grid">
+        <div>
+          <label for="daily-amount">Daily amount ($)</label>
+          <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
+        </div>
+        <div>
+          <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
+          <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
+        </div>
       </div>
     </section>
 
-    <section>
-      <h2>🏆 Ranking</h2>
-      <p class="hint" style="margin-top:0">
-        Rank every bundled asset under the current configuration. Instant — no network requests.
+    <nav class="analysis-tabs" role="tablist" aria-label="Analysis view">
+      <button id="general-tab" class="analysis-tab" type="button" role="tab"
+        aria-selected="true" aria-controls="general-panel">🌍 General Analysis</button>
+      <button id="specific-tab" class="analysis-tab" type="button" role="tab"
+        aria-selected="false" aria-controls="specific-panel">📊 Specific Analysis</button>
+    </nav>
+    <div id="general-panel" role="tabpanel" aria-labelledby="general-tab">
+    <section class="block" id="general-section">
+      <h2>🌍 General Analysis <span class="hint" id="general-window"></span></h2>
+      <p class="hint" style="margin-top:-8px">
+        Every listed asset, plain DCA (buy every day, no RSI/CCI/MFI/F&amp;G filter)
+        over the current look-back. This is the baseline each strategy is compared against.
       </p>
-      <button id="load-rank" type="button" class="secondary">Load Top 5</button>
-      <p id="rank-progress" class="hint"></p>
-    </section>
-  </aside>
+      <div class="metrics" id="general-summary">
+        <p class="hint">Loading local price history for the asset catalogue…</p>
+      </div>
 
-  <main id="main">
+      <h3 class="analysis-title">Visual overview</h3>
+      <div class="general-chart-grid">
+        <section class="general-chart-card">
+          <h4>Winners vs. non-winners</h4>
+          <div class="general-chart" id="general-breadth-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>Median DCA return by category</h4>
+          <div class="general-chart" id="general-category-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>Top 10 companies: DCA vs. price return</h4>
+          <div class="general-chart" id="general-top-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>Return vs. maximum drawdown</h4>
+          <div class="general-chart" id="general-risk-chart"></div>
+        </section>
+      </div>
+
+      <h3 class="analysis-title">Per-category overview</h3>
+      <div id="general-categories"></div>
+
+      <h3 class="analysis-title">Top 10 most profitable (no strategy)</h3>
+      <div id="general-top"></div>
+
+      <h3 class="analysis-title">Anomalies</h3>
+      <div id="general-anomalies"></div>
+    </section>
+    </div>
+
+    <div id="specific-panel" class="hidden" role="tabpanel" aria-labelledby="specific-tab">
+    <section class="settings-card specific-settings" aria-label="Specific analysis settings">
+      <section class="asset-selection">
+        <h2>Asset</h2>
+        <div class="settings-grid">
+          <div>
+            <label for="category">Asset category</label>
+            <select id="category"></select>
+          </div>
+          <div>
+            <label for="asset">Choose an asset</label>
+            <select id="asset"></select>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h2>🎛️ Entry Indicator</h2>
+        <label for="indicator">Indicator</label>
+        <select id="indicator"></select>
+        <div id="indicator-params"></div>
+        <p id="indicator-hint" class="hint"></p>
+      </section>
+      <section>
+        <h2>🔍 Auto-Optimizer</h2>
+        <p class="hint" style="margin-top:0">
+          Searches <strong>every indicator and config</strong> plus the
+          <em>no-restriction</em> baseline, using a train/test split to detect overfitting.
+        </p>
+        <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
+        <input id="split" type="range" min="50" max="85" step="5" value="70">
+        <div style="margin-top:14px">
+          <button id="run-opt" type="button">🚀 Find best config</button>
+        </div>
+      </section>
+    </section>
+
     <section class="block" id="asset-view">
       <h2 id="asset-title">📊 —</h2>
       <div class="metrics" id="metrics"></div>
@@ -207,37 +289,27 @@
       <div id="opt-results"></div>
     </section>
 
-    <section class="block" id="rank-section">
-      <h2>🏆 Top 5 Assets (current config)</h2>
-      <div id="rank-results">
-        <p class="hint">Click <strong>Load Top 5</strong> in the sidebar to rank every asset.</p>
-      </div>
-      <p id="rank-note" class="hint hidden">
-        ℹ️ Non-crypto assets fall back to <em>No restriction</em> when F&amp;G is selected.
-      </p>
-    </section>
-
     <section class="block">
       <details>
         <summary>📄 View daily purchase log</summary>
         <div class="log-wrap" id="purchase-log"></div>
       </details>
     </section>
+    </div>
 
     <footer class="footnote">
-      Data: offline snapshot of Yahoo Finance daily prices through <span id="data-through">—</span>.
+      Data: downloaded Yahoo Finance snapshot through <span id="data-through">—</span>.
       Candles use the previous close as the open (the snapshot stores high/low/close only).
       Fear &amp; Greed: alternative.me snapshot (crypto only).
       Train/test split is chronological (no shuffling) — the test set is the <em>future</em>
       relative to the train set, which is the correct way to validate a time-series strategy.
       Fees/slippage ignored. Past performance ≠ future results.
       <br>
-      No API keys, no CORS proxies, no network requests — everything runs from the bundled dataset.
+      No network requests are required; pair data is loaded from local files on demand.
     </footer>
   </main>
 </div>
 
-<script src="data.js"></script>
 <script>
 /* =========================================================================
    Asset catalogue
@@ -290,17 +362,95 @@ const ASSET_CATALOGUE = {
     "CVS Health (CVS)": "CVS",
     "Moderna (MRNA)": "MRNA"
   },
-  "── Financials ──": {
+  "── Banks ──": {
     "JPMorgan Chase (JPM)": "JPM",
     "Bank of America (BAC)": "BAC",
     "Wells Fargo (WFC)": "WFC",
     "Citigroup (C)": "C",
     "Goldman Sachs (GS)": "GS",
     "Morgan Stanley (MS)": "MS",
+    "U.S. Bancorp (USB)": "USB",
+    "PNC Financial (PNC)": "PNC",
+    "Truist (TFC)": "TFC",
+    "Charles Schwab (SCHW)": "SCHW",
+    "BNY Mellon (BNY)": "BNY",
+    "State Street (STT)": "STT",
+    "Capital One (COF)": "COF",
+    "American Express (AXP)": "AXP",
+    "Northern Trust (NTRS)": "NTRS",
+    "Fifth Third (FITB)": "FITB",
+    "Huntington Bancshares (HBAN)": "HBAN",
+    "Regions Financial (RF)": "RF",
+    "KeyCorp (KEY)": "KEY",
+    "Citizens Financial (CFG)": "CFG",
+    "M&T Bank (MTB)": "MTB",
+    "Zions Bancorporation (ZION)": "ZION",
+    "HSBC (HSBC)": "HSBC",
+    "Deutsche Bank (DB)": "DB",
+    "UBS (UBS)": "UBS",
+    "ING Group (ING)": "ING",
+    "Banco Santander (SAN)": "SAN",
+    "BBVA (BBVA)": "BBVA",
+    "Banco Sabadell (BCS)": "BCS",
+    "Royal Bank of Canada (RY)": "RY",
+    "TD Bank (TD)": "TD",
+    "Bank of Montreal (BMO)": "BMO",
+    "Canadian Imperial (CM)": "CM",
+    "Mitsubishi UFJ (MUFG)": "MUFG",
+    "Sumitomo Mitsui (SMFG)": "SMFG"
+  },
+  "── Vulture & Distressed Debt ──": {
+    "Apollo Global Management (APO)": "APO",
+    "Ares Management (ARES)": "ARES",
+    "Blackstone (BX)": "BX",
+    "KKR (KKR)": "KKR",
+    "Carlyle Group (CG)": "CG",
+    "Brookfield Asset Management (BAM)": "BAM",
+    "Ares Capital (ARCC)": "ARCC",
+    "Oaktree Specialty Lending (OCSL)": "OCSL",
+    "Hercules Capital (HTGC)": "HTGC",
+    "Golub Capital BDC (GBDC)": "GBDC",
+    "Main Street Capital (MAIN)": "MAIN",
+    "Prospect Capital (PSEC)": "PSEC",
+    "FS KKR Capital (FSK)": "FSK",
+    "Blue Owl Capital (OWL)": "OWL",
+    "PennantPark Investment (PNNT)": "PNNT",
+    "TriplePoint Venture Growth (TPVG)": "TPVG",
+    "Saratoga Investment (SAR)": "SAR",
+    "NewtekOne (NEWT)": "NEWT",
+    "Oxford Lane Capital (OXLC)": "OXLC",
+    "Eagle Point Credit (ECC)": "ECC",
+    "BlackRock TCP Capital (TCPC)": "TCPC",
+    "Capital Southwest (CSWC)": "CSWC",
+    "Goldman Sachs BDC (GSBD)": "GSBD",
+    "SLR Investment (SLRC)": "SLRC",
+    "B. Riley Financial (RILY)": "RILY"
+  },
+  "── Insurance, Asset Managers & Exchanges ──": {
     "Visa (V)": "V",
     "Mastercard (MA)": "MA",
     "BlackRock (BLK)": "BLK",
-    "Berkshire Hathaway (BRK-B)": "BRK-B"
+    "Berkshire Hathaway (BRK-B)": "BRK-B",
+    "Progressive (PGR)": "PGR",
+    "AIG (AIG)": "AIG",
+    "MetLife (MET)": "MET",
+    "Prudential Financial (PRU)": "PRU",
+    "Allstate (ALL)": "ALL",
+    "Travelers (TRV)": "TRV",
+    "Chubb (CB)": "CB",
+    "Aon (AON)": "AON",
+    "Marsh McLennan (MRSH)": "MRSH",
+    "Arthur J. Gallagher (AJG)": "AJG",
+    "T. Rowe Price (TROW)": "TROW",
+    "Franklin Resources (BEN)": "BEN",
+    "Invesco (IVZ)": "IVZ",
+    "CME Group (CME)": "CME",
+    "Intercontinental Exchange (ICE)": "ICE",
+    "Nasdaq (NDAQ)": "NDAQ",
+    "Cboe Global Markets (CBOE)": "CBOE",
+    "S&P Global (SPGI)": "SPGI",
+    "Moody's (MCO)": "MCO",
+    "MSCI (MSCI)": "MSCI"
   },
   "── Energy ──": {
     "Exxon Mobil (XOM)": "XOM",
@@ -397,6 +547,12 @@ const ASSET_CATALOGUE = {
 const ALL_ASSETS = {};
 Object.values(ASSET_CATALOGUE).forEach(g => Object.assign(ALL_ASSETS, g));
 
+const TICKER_CATEGORY = {};
+Object.entries(ASSET_CATALOGUE).forEach(([cat, group]) => {
+  const name = cat.replace(/^── | ──$/g, "");
+  Object.values(group).forEach(tk => { TICKER_CATEGORY[tk] = name; });
+});
+
 /* =========================================================================
    Indicator definitions & grids
    ========================================================================= */
@@ -457,7 +613,9 @@ const state = {
 };
 
 let fngMap = null;          // Map "YYYY-MM-DD" -> int
-let fngAvailable = false;
+let fngRequest = null;
+const DATA_STORE = window.DCA_DATA = window.DCA_DATA || { market: {}, fearGreed: null };
+const dataScriptPromises = new Map();
 
 /* =========================================================================
    Utilities
@@ -473,6 +631,11 @@ function fmtPrice(x) {
   if (abs > 0 && abs < 0.01) d = 8;
   else if (abs < 1) d = 4;
   return Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function htmlEscape(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
 }
 function isCrypto(ticker) {
   const t = String(ticker).toUpperCase();
@@ -496,33 +659,70 @@ function updateDaysSliderMax() {
 }
 
 /* =========================================================================
-   Data layer — bundled offline snapshot (see data.js)
+   Local data layer
    ========================================================================= */
-function loadFearGreed() {
-  if (fngMap) return fngMap;
-  const m = new Map();
-  if (typeof FNG_DATA !== "undefined") {
-    Object.entries(FNG_DATA).forEach(([d, v]) => m.set(d, v));
+function loadDataScript(name) {
+  if (!dataScriptPromises.has(name)) {
+    const request = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "data/" + encodeURIComponent(name) + ".js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Could not load local data file data/" + name + ".js"));
+      document.head.appendChild(script);
+    });
+    dataScriptPromises.set(name, request);
+    request.catch(() => dataScriptPromises.delete(name));
   }
-  fngMap = m;
-  return m;
+  return dataScriptPromises.get(name);
 }
 
-/* ---- How many calendar days of history the bundled snapshot has for a ticker ---- */
+async function loadFearGreed() {
+  if (fngMap) return fngMap;
+  if (!fngRequest) {
+    fngRequest = (async () => {
+      await loadDataScript("fear-greed");
+      if (!DATA_STORE.fearGreed || typeof DATA_STORE.fearGreed !== "object") {
+        throw new Error("Local Fear & Greed data file did not contain usable data");
+      }
+      const map = new Map(Object.entries(DATA_STORE.fearGreed));
+      if (map.size === 0) throw new Error("Local Fear & Greed data file is empty");
+      fngMap = map;
+      return map;
+    })();
+  }
+  try {
+    return await fngRequest;
+  } catch (error) {
+    fngRequest = null;
+    throw error;
+  }
+}
+
+/* ---- Maximum calendar days of history available for a ticker ---- */
 function pairHistoryDays(ticker) {
-  const raw = typeof MARKET_DATA !== "undefined" ? MARKET_DATA[ticker] : null;
+  const raw = DATA_STORE.market[ticker];
   if (!raw || !raw.d || !raw.d.length) return null;
   const first = Date.parse(raw.d[0] + "T00:00:00Z");
   const last = Date.parse(raw.d[raw.d.length - 1] + "T00:00:00Z");
   return Math.ceil((last - first) / 86400000) + 1;
 }
 
-/* ---- Daily OHLCV from the bundled snapshot ---- */
-function getData(ticker, daysBack) {
-  const raw = typeof MARKET_DATA !== "undefined" ? MARKET_DATA[ticker] : null;
-  if (!raw || !raw.d || !raw.d.length) {
-    throw new Error("ticker " + ticker + " is not in the bundled dataset");
+/* ---- Load a ticker's local OHLCV file only when it is first needed ---- */
+async function loadMarketHistory(ticker) {
+  if (!DATA_STORE.market[ticker]) await loadDataScript(ticker);
+  const history = DATA_STORE.market[ticker];
+  if (!history || !Array.isArray(history.d) || history.d.length < 2 ||
+      !Array.isArray(history.h) || !Array.isArray(history.l) ||
+      !Array.isArray(history.c) || !Array.isArray(history.v)) {
+    throw new Error("Local price history for " + ticker + " is missing or invalid");
   }
+  return history;
+}
+
+/* ---- Slice local daily OHLCV to the selected look-back period ---- */
+async function getData(ticker, daysBack) {
+  const raw = await loadMarketHistory(ticker);
   const n = raw.d.length;
   const endMs = Date.parse(raw.d[n - 1] + "T00:00:00Z");
   const cutoff = new Date(endMs - daysBack * 86400000).toISOString().slice(0, 10);
@@ -662,6 +862,367 @@ function simulateDCA(data, dailyAmount, signal) {
     roiPct[i] = totalInvested[i] > 0 ? (profit[i] / totalInvested[i]) * 100 : 0;
   }
   return { shares, cumShares, buyCount, totalInvested, portfolioValue, profit, roiPct };
+}
+
+/* =========================================================================
+   General analysis (all assets, no strategy)
+   ========================================================================= */
+function median(values) {
+  if (!values.length) return 0;
+  const a = values.slice().sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function maxDrawdown(closes) {
+  let peak = closes[0] || 0;
+  let mdd = 0;
+  for (let i = 0; i < closes.length; i++) {
+    if (closes[i] > peak) peak = closes[i];
+    if (peak > 0) mdd = Math.min(mdd, closes[i] / peak - 1);
+  }
+  return mdd;
+}
+
+function detectAnomalies(data, mddPct) {
+  const closes = data.close;
+  const out = [];
+  if (closes.length < 30) out.push("short history (<30 days)");
+  if (closes.some(c => !(c > 0))) out.push("non-positive price");
+
+  let run = 1, longest = 1;
+  for (let i = 1; i < closes.length; i++) {
+    run = closes[i] === closes[i - 1] ? run + 1 : 1;
+    if (run > longest) longest = run;
+  }
+  if (longest >= 10) out.push(longest + " identical closes in a row");
+
+  let maxMove = 0;
+  for (let i = 1; i < closes.length; i++) {
+    maxMove = Math.max(maxMove, Math.abs(closes[i] / closes[i - 1] - 1));
+  }
+  if (maxMove >= 0.5) out.push("single-day move " + (maxMove * 100).toFixed(0) + "%");
+  if (mddPct <= -80) out.push("drawdown " + mddPct.toFixed(0) + "%");
+  return out;
+}
+
+async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
+  const entries = Object.entries(ALL_ASSETS);
+  const rows = new Array(entries.length);
+  let next = 0;
+  let completed = 0;
+  const worker = async () => {
+    while (next < entries.length) {
+      const index = next++;
+      const [name, ticker] = entries[index];
+      const category = TICKER_CATEGORY[ticker] || "Other";
+      try {
+        const data = await getData(ticker, daysBack);
+        if (data.close.length < 2) throw new Error("fewer than two usable days");
+        const last = data.close.length - 1;
+        const signal = new Array(data.close.length).fill(true);
+        const sim = simulateDCA(data, dailyAmount, signal);
+        const mddPct = maxDrawdown(data.close) * 100;
+        rows[index] = {
+          name, ticker, category,
+          roi: sim.roiPct[last],
+          priceRet: (data.close[last] / data.close[0] - 1) * 100,
+          mdd: mddPct,
+          days: data.close.length,
+          lastDate: data.dates[last],
+          anomalies: detectAnomalies(data, mddPct)
+        };
+      } catch (error) {
+        rows[index] = {
+          name, ticker, category, roi: null, priceRet: null, mdd: null,
+          days: 0, lastDate: null, error: error.message,
+          anomalies: ["no usable data"]
+        };
+      }
+      onProgress(++completed, entries.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, entries.length) }, worker));
+
+  const valid = rows.filter(r => r.roi !== null);
+  const sorted = valid.slice().sort((a, b) => b.roi - a.roi);
+  const byCategory = {};
+  valid.forEach(r => {
+    if (!byCategory[r.category]) byCategory[r.category] = [];
+    byCategory[r.category].push(r);
+  });
+  const categories = Object.entries(byCategory).map(([name, assets]) => {
+    const ranked = assets.slice().sort((a, b) => b.roi - a.roi);
+    return {
+      name, count: assets.length,
+      medianRoi: median(assets.map(r => r.roi)),
+      best: ranked[0],
+      worst: ranked[ranked.length - 1],
+      anomalyCount: assets.filter(r => r.anomalies.length).length
+    };
+  }).sort((a, b) => b.medianRoi - a.medianRoi);
+
+  return {
+    rows, valid, categories,
+    top: sorted.slice(0, 10),
+    bottom: sorted.slice(-5).reverse(),
+    winners: valid.filter(r => r.roi > 0).length,
+    medianRoi: median(valid.map(r => r.roi)),
+    through: valid.reduce((d, r) => r.lastDate > d ? r.lastDate : d, ""),
+    anomalies: rows.filter(r => r.anomalies.length)
+      .sort((a, b) => b.anomalies.length - a.anomalies.length || a.name.localeCompare(b.name))
+  };
+}
+
+function roiText(x) {
+  return (x >= 0 ? "+" : "") + x.toFixed(2) + "%";
+}
+function roiColor(x) {
+  return x >= 0 ? "var(--accent)" : "var(--danger)";
+}
+
+let generalAnalysisToken = 0;
+let generalAnalysisLoaded = false;
+let generalAnalysisData = null;
+
+function renderGeneralPlot(id, traces, layout) {
+  const target = document.getElementById(id);
+  const render = target.classList.contains("js-plotly-plot") ? Plotly.react : Plotly.newPlot;
+  return render(target, traces, Object.assign({
+    height: 330,
+    margin: { l: 70, r: 18, t: 12, b: 52 },
+    paper_bgcolor: "#1a1f2b",
+    plot_bgcolor: "#1a1f2b",
+    font: { color: "#fafafa", size: 11 },
+    xaxis: { gridcolor: "#2d3441", zerolinecolor: "#9aa4b2" },
+    yaxis: { gridcolor: "#2d3441", zerolinecolor: "#9aa4b2" }
+  }, layout), { responsive: true, displaylogo: false }).catch(error => {
+    target.innerHTML = '<p class="warning">Chart unavailable: ' +
+      htmlEscape(error.message) + '</p>';
+  });
+}
+
+function renderGeneralCharts(analysis) {
+  renderGeneralPlot("general-breadth-chart", [{
+    type: "pie",
+    labels: ["Positive DCA return", "Zero or negative return"],
+    values: [analysis.winners, analysis.valid.length - analysis.winners],
+    hole: 0.62,
+    sort: false,
+    marker: { colors: ["#00cc96", "#ef553b"] },
+    textinfo: "label+percent",
+    hovertemplate: "%{label}<br>%{value} assets (%{percent})<extra></extra>"
+  }], {
+    height: 300,
+    margin: { l: 16, r: 16, t: 8, b: 12 },
+    showlegend: false,
+    annotations: [{
+      text: analysis.valid.length + "<br>assets",
+      showarrow: false,
+      font: { size: 19, color: "#fafafa" }
+    }]
+  });
+
+  const categories = analysis.categories;
+  renderGeneralPlot("general-category-chart", [{
+    type: "bar",
+    orientation: "h",
+    x: categories.map(category => category.medianRoi),
+    y: categories.map(category => category.name),
+    customdata: categories.map(category => category.count),
+    marker: {
+      color: categories.map(category => category.medianRoi >= 0 ? "#00cc96" : "#ef553b")
+    },
+    hovertemplate: "%{y}<br>Median DCA return: %{x:.2f}%" +
+      "<br>%{customdata} assets<extra></extra>"
+  }], {
+    height: Math.max(300, categories.length * 28 + 80),
+    margin: { l: 145, r: 20, t: 12, b: 45 },
+    xaxis: { title: "Median return (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
+  });
+
+  const top = analysis.top;
+  const topTickers = top.map(row => row.ticker);
+  const topNames = top.map(row => row.name);
+  renderGeneralPlot("general-top-chart", [
+    {
+      type: "bar",
+      name: "DCA return",
+      orientation: "h",
+      x: top.map(row => row.roi),
+      y: topTickers,
+      customdata: topNames,
+      marker: { color: "#00cc96" },
+      hovertemplate: "%{customdata} (%{y})<br>DCA return: %{x:.2f}%<extra></extra>"
+    },
+    {
+      type: "bar",
+      name: "Price return",
+      orientation: "h",
+      x: top.map(row => row.priceRet),
+      y: topTickers,
+      customdata: topNames,
+      marker: { color: "#636efa" },
+      hovertemplate: "%{customdata} (%{y})<br>Price return: %{x:.2f}%<extra></extra>"
+    }
+  ], {
+    height: 390,
+    barmode: "group",
+    margin: { l: 80, r: 20, t: 12, b: 55 },
+    legend: { orientation: "h", y: -0.2 },
+    xaxis: { title: "Return (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: {
+      categoryorder: "array",
+      categoryarray: topTickers,
+      autorange: "reversed",
+      gridcolor: "#2d3441"
+    }
+  });
+
+  const palette = [
+    "#00cc96", "#636efa", "#ef553b", "#ab63fa", "#ffa15a", "#19d3f3",
+    "#ff6692", "#b6e880", "#ff97ff", "#fecb52", "#1f77b4", "#2ca02c",
+    "#d62728", "#9467bd"
+  ];
+  const categoryColors = new Map(
+    [...new Set(analysis.valid.map(row => row.category))]
+      .map((category, index) => [category, palette[index % palette.length]])
+  );
+  const shownCategories = new Set();
+  const riskTraces = [...categoryColors.keys()].map(category => {
+    const assets = analysis.valid.filter(row => row.category === category);
+    const showlegend = !shownCategories.has(category);
+    shownCategories.add(category);
+    return {
+      type: "scattergl",
+      mode: "markers",
+      name: category,
+      showlegend,
+      x: assets.map(row => row.mdd),
+      y: assets.map(row => row.roi),
+      customdata: assets.map(row => [row.name, row.ticker]),
+      marker: { color: categoryColors.get(category), size: 9, opacity: 0.8 },
+      hovertemplate:
+        "%{customdata[0]} (%{customdata[1]})<br>DCA return: %{y:.2f}%" +
+        "<br>Maximum drawdown: %{x:.2f}%<extra>%{fullData.name}</extra>"
+    };
+  });
+  renderGeneralPlot("general-risk-chart", riskTraces, {
+    height: 390,
+    margin: { l: 72, r: 18, t: 12, b: 80 },
+    legend: { orientation: "h", y: -0.3, groupclick: "togglegroup" },
+    xaxis: { title: "Maximum drawdown (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: { title: "DCA return (%)", gridcolor: "#2d3441", zeroline: true }
+  });
+}
+
+async function renderGeneralAnalysis() {
+  generalAnalysisLoaded = true;
+  const token = ++generalAnalysisToken;
+  const windowLabel = document.getElementById("general-window");
+  windowLabel.textContent = "· Loading price history for " + Object.keys(ALL_ASSETS).length + " assets…";
+  try {
+    const a = await analyzeAllAssets(state.daysBack, state.dailyAmount, (completed, total) => {
+      if (token === generalAnalysisToken) {
+        windowLabel.textContent = "· Loading " + completed + "/" + total + " assets…";
+      }
+    });
+    if (token !== generalAnalysisToken) return;
+    generalAnalysisData = a;
+    if (document.getElementById("general-tab").getAttribute("aria-selected") === "true") {
+      renderGeneralCharts(a);
+    }
+  const best = a.top[0];
+  const losers = a.valid.length - a.winners;
+
+  windowLabel.textContent =
+    "· " + a.valid.length + " assets · " + state.daysBack + "-day window · through " + (a.through || "—");
+
+  document.getElementById("general-summary").innerHTML =
+    (a.rows.some(r => r.error)
+      ? '<div class="warning" style="grid-column:1/-1">Could not load price history for ' +
+        a.rows.filter(r => r.error).length + " of " + a.rows.length + " assets. " +
+        htmlEscape(a.rows.filter(r => r.error).slice(0, 5)
+          .map(r => r.ticker + ": " + r.error).join(" · ")) +
+        (a.rows.filter(r => r.error).length > 5 ? " · …" : "") + "</div>"
+      : "") +
+    '<div class="metric"><div class="label">Assets Analysed</div>' +
+      '<div class="value">' + a.valid.length + ' / ' + a.rows.length + '</div></div>' +
+    '<div class="metric"><div class="label">Median DCA ROI (no strategy)</div>' +
+      '<div class="value" style="color:' + roiColor(a.medianRoi) + '">' + roiText(a.medianRoi) + '</div></div>' +
+    '<div class="metric"><div class="label">Winners / Losers</div>' +
+      '<div class="value">' + a.winners + ' / ' + losers + '</div>' +
+      '<div class="delta off">' + (a.valid.length ? (a.winners / a.valid.length * 100).toFixed(1) : "0.0") + '% positive</div></div>' +
+    '<div class="metric"><div class="label">Most Profitable</div>' +
+      '<div class="value" style="font-size:16px;white-space:normal">' + (best ? best.name : "—") + '</div>' +
+      '<div class="delta ' + (best && best.roi >= 0 ? "pos" : "neg") + '">' + (best ? roiText(best.roi) : "—") + '</div></div>' +
+    '<div class="metric"><div class="label">Anomalies Flagged</div>' +
+      '<div class="value">' + a.anomalies.length + '</div>' +
+      '<div class="delta off">assets with data warnings</div></div>';
+
+  const catRows = a.categories.map(c =>
+    "<tr>" +
+      "<td>" + c.name + "</td>" +
+      "<td>" + c.count + "</td>" +
+      '<td style="color:' + roiColor(c.medianRoi) + '">' + roiText(c.medianRoi) + "</td>" +
+      "<td>" + c.best.name + " (" + c.best.ticker + ") · " +
+        '<span style="color:' + roiColor(c.best.roi) + '">' + roiText(c.best.roi) + "</span></td>" +
+      "<td>" + c.worst.name + " (" + c.worst.ticker + ") · " +
+        '<span style="color:' + roiColor(c.worst.roi) + '">' + roiText(c.worst.roi) + "</span></td>" +
+      "<td>" + c.anomalyCount + "</td>" +
+    "</tr>"
+  ).join("");
+  document.getElementById("general-categories").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Category</th><th>Assets</th><th>Median DCA ROI</th>" +
+      "<th>Best asset</th><th>Worst asset</th><th>Flagged</th>" +
+    "</tr></thead><tbody>" + catRows + "</tbody></table></div>";
+
+  const topRows = a.top.map((r, i) =>
+    "<tr>" +
+      "<td>" + (i + 1) + "</td>" +
+      "<td>" + r.name + "</td>" +
+      "<td>" + r.ticker + "</td>" +
+      "<td>" + r.category + "</td>" +
+      '<td style="color:' + roiColor(r.roi) + '">' + roiText(r.roi) + "</td>" +
+      '<td style="color:' + roiColor(r.priceRet) + '">' + roiText(r.priceRet) + "</td>" +
+      "<td>" + r.mdd.toFixed(2) + "%</td>" +
+      "<td>" + r.days + "</td>" +
+    "</tr>"
+  ).join("");
+  document.getElementById("general-top").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Rank</th><th>Asset</th><th>Ticker</th><th>Category</th>" +
+      "<th>DCA ROI</th><th>Price Return</th><th>Max Drawdown</th><th>Days</th>" +
+    "</tr></thead><tbody>" + topRows + "</tbody></table></div>" +
+    '<p class="hint">DCA ROI = equal daily buys, no indicator filter. ' +
+      'Price Return = first to last close, for comparison.</p>';
+
+  const shown = a.anomalies.slice(0, 30);
+  const anomalyRows = shown.map(r =>
+    "<tr>" +
+      "<td>" + r.name + "</td>" +
+      "<td>" + r.ticker + "</td>" +
+      "<td>" + r.category + "</td>" +
+      "<td>" + r.anomalies.join(" · ") + "</td>" +
+    "</tr>"
+  ).join("");
+  document.getElementById("general-anomalies").innerHTML = shown.length
+    ? '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+        "<th>Asset</th><th>Ticker</th><th>Category</th><th>Anomaly</th>" +
+      "</tr></thead><tbody>" + anomalyRows + "</tbody></table></div>" +
+      (a.anomalies.length > shown.length
+        ? '<p class="hint">Showing ' + shown.length + " of " + a.anomalies.length + " flagged assets.</p>"
+        : "")
+    : '<p class="hint">No anomalies detected in this window.</p>';
+  } catch (error) {
+    if (token !== generalAnalysisToken) return;
+    windowLabel.textContent = "· Analysis unavailable";
+    document.getElementById("general-summary").innerHTML =
+      '<div class="warning" style="grid-column:1/-1">General analysis failed: ' +
+      htmlEscape(error.message) + "</div>";
+  }
 }
 
 /* =========================================================================
@@ -902,7 +1463,7 @@ function showError(msg) {
     '<div class="metric" style="grid-column:1/-1">' +
     '<div class="label">Error</div>' +
     '<div class="value" style="color:var(--danger);font-size:15px;white-space:normal">' +
-    msg + '</div></div>';
+    htmlEscape(msg) + '</div></div>';
   document.getElementById("chart").innerHTML = "";
   document.getElementById("purchase-log").innerHTML = "";
 }
@@ -920,6 +1481,8 @@ async function render() {
   try {
     const data = await getData(state.ticker, state.daysBack);
     if (token !== renderToken) return;
+    updateDaysSliderMax();
+    document.getElementById("data-through").textContent = data.dates[data.dates.length - 1];
 
     let fng = null;
     if (state.indicator === "Fear & Greed") {
@@ -934,9 +1497,6 @@ async function render() {
     renderChart(data, sim, signal, values);
     renderLog(data, sim, signal);
 
-    // Keep the ranking table in sync with the highlighted ticker
-    const hl = document.querySelectorAll("#rank-results tr.highlight");
-    hl.forEach(tr => tr.classList.remove("highlight"));
   } catch (e) {
     if (token !== renderToken) return;
     showError("Could not load " + state.ticker + " — " + e.message + ".");
@@ -960,7 +1520,7 @@ function updateIndicatorOptions() {
   const sel = document.getElementById("indicator");
   const crypto = isCrypto(getEffectiveTicker());
   const choices = ["none", "RSI", "CCI", "MFI"];
-  if (crypto && fngAvailable) choices.push("Fear & Greed");
+  if (crypto) choices.push("Fear & Greed");
 
   const current = Array.from(sel.options).map(o => o.value);
   const changed = current.length !== choices.length ||
@@ -1105,9 +1665,6 @@ function applyBestConfig(best) {
 
 async function onTickerChange() {
   state.ticker = getEffectiveTicker();
-  updateDaysSliderMax();
-  await loadFearGreed();
-  fngAvailable = !!(fngMap && fngMap.size > 0);
   updateIndicatorOptions();
   updateIndicatorParams();
   render();
@@ -1189,95 +1746,23 @@ async function runOptimizer() {
 }
 
 /* =========================================================================
-   Top-5 ranking
+   Initialisation
    ========================================================================= */
-async function runRanking() {
-  const btn = document.getElementById("load-rank");
-  const prog = document.getElementById("rank-progress");
-  const target = document.getElementById("rank-results");
-  const note = document.getElementById("rank-note");
-  btn.disabled = true;
-
-  const entries = Object.entries(ALL_ASSETS);
-  const results = {};
-
-  try {
-    for (let i = 0; i < entries.length; i++) {
-      const [name, tk] = entries[i];
-      prog.textContent = "Ranking " + (i + 1) + "/" + entries.length + ": " + tk + "…";
-      try {
-        const data = await getData(tk, state.daysBack);
-        if (!data || data.close.length < 2) continue;
-
-        let ind = state.indicator;
-        let params = state.params;
-        if (ind === "Fear & Greed" && !isCrypto(tk)) { ind = "none"; params = {}; }
-
-        const fng = ind === "Fear & Greed" ? await loadFearGreed() : null;
-        const { signal } = computeSignal(data, ind, params, fng);
-        const sim = simulateDCA(data, state.dailyAmount, signal);
-        const last = data.close.length - 1;
-
-        if (sim.buyCount[last] === 0) continue;
-
-        results[name] = {
-          ticker: tk,
-          roi: sim.roiPct[last],
-          value: sim.portfolioValue[last],
-          invested: sim.totalInvested[last],
-          buys: sim.buyCount[last],
-          days: data.close.length,
-          ind
-        };
-      } catch (e) {
-        console.warn("Skipping", tk, e);
-      }
-    }
-
-    const ranked = Object.entries(results)
-      .sort((a, b) => b[1].roi - a[1].roi)
-      .slice(0, 5);
-
-    if (!ranked.length) {
-      target.innerHTML = '<div class="warning">No asset triggered a buy under this config in the chosen window. ' +
-        'Loosen the threshold or extend the look-back period.</div>';
-      return;
-    }
-
-    const currentTicker = getEffectiveTicker();
-    const trs = ranked.map(([name, d], i) => {
-      const cls = d.ticker === currentTicker ? ' class="highlight"' : "";
-      return "<tr" + cls + ">" +
-        "<td>" + (i + 1) + "</td>" +
-        "<td>" + name + "</td>" +
-        "<td>" + d.ticker + "</td>" +
-        "<td>" + d.ind + "</td>" +
-        "<td>" + d.roi.toFixed(2) + "%</td>" +
-        "<td>$" + fmt(d.value, 2) + "</td>" +
-        "<td>$" + fmt(d.invested, 2) + "</td>" +
-        "<td>" + d.buys + " / " + d.days + "</td>" +
-        "</tr>";
-    }).join("");
-
-    target.innerHTML =
-      '<div class="table-scroll"><table class="data-table"><thead><tr>' +
-        '<th>Rank</th><th>Asset</th><th>Ticker</th><th>Indicator</th>' +
-        '<th>ROI %</th><th>Portfolio Value</th><th>Total Invested</th><th>Buy Days</th>' +
-      '</tr></thead><tbody>' + trs + '</tbody></table></div>';
-
-    if (state.indicator === "Fear & Greed") note.classList.remove("hidden");
-    else note.classList.add("hidden");
-  } catch (e) {
-    target.innerHTML = '<div class="warning">Ranking failed: ' + e.message + '</div>';
-  } finally {
-    prog.textContent = "";
-    btn.disabled = false;
+function selectAnalysisTab(view) {
+  const specific = view === "specific";
+  document.getElementById("general-tab").setAttribute("aria-selected", String(!specific));
+  document.getElementById("specific-tab").setAttribute("aria-selected", String(specific));
+  document.getElementById("general-tab").tabIndex = specific ? -1 : 0;
+  document.getElementById("specific-tab").tabIndex = specific ? 0 : -1;
+  document.getElementById("general-panel").classList.toggle("hidden", specific);
+  document.getElementById("specific-panel").classList.toggle("hidden", !specific);
+  if (specific) {
+    render();
+  } else if (generalAnalysisData) {
+    renderGeneralCharts(generalAnalysisData);
   }
 }
 
-/* =========================================================================
-   Initialisation
-   ========================================================================= */
 async function init() {
   // Category select
   const catSel = document.getElementById("category");
@@ -1293,18 +1778,6 @@ async function init() {
   state.daysBack = Number(document.getElementById("days-back").value);
   state.dailyAmount = Number(document.getElementById("daily-amount").value);
   state.splitPct = Number(document.getElementById("split").value);
-
-  // Load bundled Fear & Greed history
-  await loadFearGreed();
-  fngAvailable = !!(fngMap && fngMap.size > 0);
-
-  // Show the snapshot date in the footer
-  if (typeof MARKET_DATA !== "undefined") {
-    const first = MARKET_DATA[Object.keys(MARKET_DATA)[0]];
-    if (first && first.d.length) {
-      document.getElementById("data-through").textContent = first.d[first.d.length - 1];
-    }
-  }
 
   // Build indicator selector + parameter sliders
   updateIndicatorOptions();
@@ -1324,6 +1797,7 @@ async function init() {
     if (v > 1000) v = 1000;
     state.dailyAmount = v;
     e.target.value = v;
+    if (generalAnalysisLoaded) renderGeneralAnalysis();
     render();
   });
 
@@ -1333,7 +1807,10 @@ async function init() {
     daysVal.textContent = daysSlider.value;
     state.daysBack = Number(daysSlider.value);
   });
-  daysSlider.addEventListener("change", () => render());
+  daysSlider.addEventListener("change", () => {
+    if (generalAnalysisLoaded) renderGeneralAnalysis();
+    render();
+  });
 
   const splitSlider = document.getElementById("split");
   const splitVal = document.getElementById("split-val");
@@ -1349,8 +1826,15 @@ async function init() {
   });
 
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
-  document.getElementById("load-rank").addEventListener("click", runRanking);
-
+  document.getElementById("general-tab").addEventListener("click", () => selectAnalysisTab("general"));
+  document.getElementById("specific-tab").addEventListener("click", () => selectAnalysisTab("specific"));
+  document.querySelector(".analysis-tabs").addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const view = event.key === "Home" || event.key === "ArrowLeft" ? "general" : "specific";
+    selectAnalysisTab(view);
+    document.getElementById(view + "-tab").focus();
+  });
   // Resize the plot by width only. Plotly's own responsive resize drops the
   // chart's fixed layout height, which squashes it to a thin strip.
   let chartWidth = 0;
@@ -1362,8 +1846,7 @@ async function init() {
     Plotly.relayout(el, { width: w });
   }).observe(document.getElementById("chart"));
 
-  // First paint
-  await render();
+  await Promise.all([render(), renderGeneralAnalysis()]);
 }
 
 init();
