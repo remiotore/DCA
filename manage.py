@@ -2,12 +2,21 @@
 """Keep the daily snapshots current and alert on oversold daily indicators.
 
 Usage:
-    python manage.py --update              # refresh data/*.js from Yahoo Finance
-    python manage.py --alert               # scan 1D candles and notify Telegram
-    python manage.py --update --alert      # refresh snapshots, then alert
+    python manage.py --update                        # refresh data/*.js from Yahoo Finance
+    python manage.py --alert                         # default thresholds on latest local candle
+    python manage.py --alert --optimize              # grid-search best strategy per asset, alert matches
+    python manage.py --alert --optimize --loopback-days 365
+    python manage.py --update --alert --optimize     # refresh then optimize-alert
 
-Telegram delivery needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the
-environment; without them alerts are printed to the console only.
+`--alert` reads the joined daily history from data/*.js (kept current by --update).
+`--loopback-days` (default 365) sets the analysis window for both modes.
+In --optimize mode, the grid search uses a chronological 70/30 train/test split,
+picks the best non-baseline config by train ROI (min 2% buy rate), and only
+alerts when the latest day's indicator values match that optimized strategy.
+Assets whose optimized config has a non-positive out-of-sample ROI are skipped.
+
+Telegram delivery needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the environment;
+without them alerts are printed to the console only.
 """
 
 from __future__ import annotations
@@ -28,6 +37,7 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -47,7 +57,50 @@ THRESHOLDS = {
 FEAR_GREED_THRESHOLD = 25.0
 TELEGRAM_LIMIT = 4000
 
+SPLIT_RATIO = 0.70
+MIN_FRAME_DAYS = 60
+MIN_BUY_PCT = 2.0
 
+# Mirrors index.html GRIDS: each config enables exactly one condition.
+INDICATOR_GRIDS = {
+    "RSI": {
+        "configs": (
+            [{"period": p, "useLower": False, "useUpper": True, "upper": u, "lower": 30}
+             for p in [7, 14, 21] for u in [60, 65, 70, 75, 80]] +
+            [{"period": p, "useLower": True, "useUpper": False, "lower": l, "upper": 70}
+             for p in [7, 14, 21] for l in [20, 25, 30, 35, 40, 45]]
+        ),
+    },
+    "CCI": {
+        "configs": (
+            [{"period": p, "useLower": False, "useUpper": True, "upper": u, "lower": -100}
+             for p in [7, 14, 20] for u in [50, 100, 150, 200]] +
+            [{"period": p, "useLower": True, "useUpper": False, "lower": l, "upper": 100}
+             for p in [7, 14, 20] for l in [-250, -200, -150, -100, -50, 0]]
+        ),
+    },
+    "MFI": {
+        "configs": (
+            [{"period": p, "useLower": False, "useUpper": True, "upper": u, "lower": 20}
+             for p in [7, 14, 21] for u in [60, 70, 80, 90]] +
+            [{"period": p, "useLower": True, "useUpper": False, "lower": l, "upper": 80}
+             for p in [7, 14, 21] for l in [10, 15, 20, 25, 30, 35]]
+        ),
+    },
+    "Fear & Greed": {
+        "configs": (
+            [{"useLower": False, "useUpper": True, "upper": u, "lower": 25}
+             for u in [50, 60, 75, 90]] +
+            [{"useLower": True, "useUpper": False, "lower": l, "upper": 75}
+             for l in [10, 15, 20, 25, 30, 40, 50]]
+        ),
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Catalogue + snapshot I/O
+# ---------------------------------------------------------------------------
 def load_catalogue() -> dict[str, str]:
     """Return ticker -> category, preserving catalogue order."""
     source = INDEX_FILE.read_text(encoding="utf-8")
@@ -95,6 +148,31 @@ def write_snapshot(path: Path, ticker: str, history: dict) -> None:
     )
 
 
+def load_local_frame(ticker: str, loopback_days: int) -> pd.DataFrame | None:
+    path = DATA_DIR / f"{ticker}.js"
+    if not path.exists():
+        return None
+    try:
+        history = read_snapshot(path, ticker)
+    except Exception:
+        return None
+    if not history["d"]:
+        return None
+    frame = pd.DataFrame({
+        "High": history["h"],
+        "Low": history["l"],
+        "Close": history["c"],
+        "Volume": history["v"],
+    }, index=pd.to_datetime(history["d"]))
+    frame = frame[~frame.index.duplicated(keep="last")].sort_index()
+    if loopback_days and len(frame) > loopback_days:
+        frame = frame.iloc[-loopback_days:]
+    return frame
+
+
+# ---------------------------------------------------------------------------
+# Fetcher (--update)
+# ---------------------------------------------------------------------------
 def history_rows(ticker: str, start: date, end: date) -> list[tuple[str, float, float, float, float]]:
     with warnings.catch_warnings():
         pandas4_warning = getattr(pd.errors, "Pandas4Warning", None)
@@ -242,23 +320,21 @@ def read_fear_greed() -> dict[str, int]:
     return dict(sorted(cleaned.items()))
 
 
-def latest_fear_greed(values: dict[str, int], as_of: str) -> tuple[str, int] | None:
-    eligible = [(day, value) for day, value in values.items() if day <= as_of]
-    if not eligible:
+def build_fng_series(values: dict[str, int]) -> pd.Series | None:
+    if not values:
         return None
-    return eligible[-1]
+    items = sorted(values.items())
+    idx = pd.to_datetime([k for k, _ in items])
+    vals = [v for _, v in items]
+    return pd.Series(vals, index=idx)
 
 
 def run_update(tickers: list[str], end: date, dry_run: bool, verbose: bool) -> int:
     print(f"Updating {len(tickers)} market snapshots through {end.isoformat()}")
     if dry_run:
-        snapshot_ends = []
         for ticker in tickers:
-            snapshot_ends.append((ticker, read_snapshot(DATA_DIR / f"{ticker}.js", ticker)["d"][-1]))
+            read_snapshot(DATA_DIR / f"{ticker}.js", ticker)
         print(f"Validated {len(tickers)} market snapshots; no files changed.")
-        if verbose:
-            for ticker, latest in snapshot_ends:
-                print(f"{ticker}: {latest} -> {end.isoformat()}")
         print("Fear & Greed: would refresh through " + end.isoformat())
         return 0
 
@@ -299,41 +375,242 @@ def run_update(tickers: list[str], end: date, dry_run: bool, verbose: bool) -> i
     return 0
 
 
-def calculate(frame: pd.DataFrame) -> dict[str, float]:
-    high, low, close, volume = (
-        frame[column].astype(float) for column in ("High", "Low", "Close", "Volume")
-    )
-    typical = (high + low + close) / 3
+# ---------------------------------------------------------------------------
+# Indicator series (numpy outputs, aligned with the input arrays)
+# ---------------------------------------------------------------------------
+def indicator_rsi(close: np.ndarray, period: int) -> np.ndarray:
+    s = pd.Series(close)
+    delta = s.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    rsi = 100 - 100 / (1 + avg_gain / avg_loss.replace(0, np.nan))
+    rsi = rsi.mask((avg_gain == 0) & (avg_loss == 0), 50)
+    rsi = rsi.mask((avg_loss == 0) & (avg_gain > 0), 100)
+    return rsi.to_numpy(dtype=float)
 
-    delta = close.diff()
-    avg_gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    avg_loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    rsi = 100 - 100 / (1 + avg_gain / avg_loss.replace(0, math.nan))
-    rsi = rsi.mask((avg_gain == 0) & (avg_loss == 0), 50).mask(
-        (avg_loss == 0) & (avg_gain > 0), 100
-    )
 
+def indicator_mfi(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                  volume: np.ndarray, period: int) -> np.ndarray:
+    typical = (high + low + close) / 3.0
     money_flow = typical * volume
-    positive = money_flow.where(typical > typical.shift(1), 0).rolling(14).sum()
-    negative = money_flow.where(typical < typical.shift(1), 0).rolling(14).sum()
-    mfi = 100 - 100 / (1 + positive / negative.replace(0, math.nan))
-    mfi = mfi.mask((negative == 0) & (positive > 0), 100).mask(
-        (negative == 0) & (positive == 0), 50
-    )
+    typical_s = pd.Series(typical)
+    mf_s = pd.Series(money_flow)
+    positive = mf_s.where(typical_s > typical_s.shift(1), 0).rolling(period).sum()
+    negative = mf_s.where(typical_s < typical_s.shift(1), 0).rolling(period).sum()
+    mfi = 100 - 100 / (1 + positive / negative.replace(0, np.nan))
+    mfi = mfi.mask((negative == 0) & (positive > 0), 100)
+    mfi = mfi.mask((negative == 0) & (positive == 0), 50)
+    return mfi.to_numpy(dtype=float)
 
-    mean = typical.rolling(20).mean()
-    deviation = typical.rolling(20).apply(lambda x: abs(x - x.mean()).mean(), raw=True)
-    cci = (typical - mean) / (0.015 * deviation.replace(0, math.nan))
 
+def indicator_cci(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                  period: int) -> np.ndarray:
+    typical = (high + low + close) / 3.0
+    ts = pd.Series(typical)
+    mean = ts.rolling(period).mean()
+    deviation = ts.rolling(period).apply(lambda x: float(np.abs(x - x.mean()).mean()), raw=True)
+    cci = (ts - mean) / (0.015 * deviation.replace(0, np.nan))
+    return cci.to_numpy(dtype=float)
+
+
+def calculate_latest(frame: pd.DataFrame) -> dict[str, float]:
+    close = frame["Close"].to_numpy(dtype=float)
+    high = frame["High"].to_numpy(dtype=float)
+    low = frame["Low"].to_numpy(dtype=float)
+    volume = frame["Volume"].to_numpy(dtype=float)
+    rsi = indicator_rsi(close, 14)
+    mfi = indicator_mfi(high, low, close, volume, 14)
+    cci = indicator_cci(high, low, close, 20)
     return {
-        "RSI": rsi.iloc[-1],
-        "MFI": mfi.iloc[-1],
-        "CCI": cci.iloc[-1],
+        "RSI": float(rsi[-1]) if np.isfinite(rsi[-1]) else float("nan"),
+        "MFI": float(mfi[-1]) if np.isfinite(mfi[-1]) else float("nan"),
+        "CCI": float(cci[-1]) if np.isfinite(cci[-1]) else float("nan"),
     }
 
 
+# ---------------------------------------------------------------------------
+# Simulation helpers (numpy, ROI is scale-invariant to daily_amount)
+# ---------------------------------------------------------------------------
+def _segment_roi(close: np.ndarray, signal: np.ndarray, daily_amount: float = 1.0) -> float:
+    n_buys = int(signal.sum())
+    if n_buys == 0 or len(close) == 0:
+        return 0.0
+    buy_prices = close[signal]
+    if (buy_prices <= 0).any():
+        return 0.0
+    shares = float((daily_amount / buy_prices).sum())
+    invested = daily_amount * n_buys
+    value = shares * close[-1]
+    return float((value / invested - 1) * 100)
+
+
+def evaluate_signal(close: np.ndarray, signal: np.ndarray, split_idx: int,
+                    daily_amount: float = 1.0) -> dict:
+    train_days = split_idx
+    test_days = len(close) - split_idx
+    train_sig = signal[:split_idx]
+    test_sig = signal[split_idx:]
+    return {
+        "train_roi": _segment_roi(close[:split_idx], train_sig, daily_amount),
+        "test_roi": _segment_roi(close[split_idx:], test_sig, daily_amount),
+        "train_buys": int(train_sig.sum()),
+        "test_buys": int(test_sig.sum()),
+        "train_days": train_days,
+        "test_days": test_days,
+        "train_buy_pct": float(train_sig.mean() * 100) if train_days else 0.0,
+        "test_buy_pct": float(test_sig.mean() * 100) if test_days else 0.0,
+    }
+
+
+def format_label(indicator: str, config: dict) -> str:
+    base = "F&G" if indicator == "Fear & Greed" else f"{indicator}({config.get('period', '')})"
+    parts = []
+    if config.get("useLower"):
+        parts.append(f"{base} < {config['lower']} (oversold)")
+    if config.get("useUpper"):
+        parts.append(f"{base} < {config['upper']} (not overbought)")
+    return " & ".join(parts) if parts else base
+
+
+def plain_rule(indicator: str, config: dict) -> str:
+    """One-line plain-English description of what the rule does."""
+    base = "Fear & Greed" if indicator == "Fear & Greed" else f"{indicator}({config.get('period', '')})"
+    lower = config.get("lower")
+    upper = config.get("upper")
+    use_lower = config.get("useLower")
+    use_upper = config.get("useUpper")
+    if use_lower and not use_upper:
+        return f"Buy only when {base} drops below {lower} (deep-dip filter)"
+    if use_upper and not use_lower:
+        return f"Buy daily unless {base} is above {upper} (skip overbought days)"
+    if use_lower and use_upper:
+        return f"Buy only when {base} is below {lower} and below {upper}"
+    return "Buy every day (no filter)"
+
+
+def verdict(train_roi: float, test_roi: float) -> str:
+    """Plain-language confidence rating combining OOS profit and retention."""
+    if test_roi <= 0:
+        return "❌ Negative out-of-sample — skip"
+    ratio = test_roi / train_roi if train_roi > 0 else 1.0
+    if test_roi >= 10 and ratio >= 0.20:
+        return f"✓✓ Trustworthy — {test_roi:+.1f}% out-of-sample"
+    if test_roi >= 5 and ratio >= 0.15:
+        return f"✓ Reasonable — {test_roi:+.1f}% out-of-sample"
+    return f"⚠ Marginal — {test_roi:+.1f}% out-of-sample (train {train_roi:+.1f}%)"
+
+
+# ---------------------------------------------------------------------------
+# Grid search + latest-day match check (mirrors index.html)
+# ---------------------------------------------------------------------------
+def find_best_config(frame: pd.DataFrame, fng_series: pd.Series | None) -> dict | None:
+    close = frame["Close"].to_numpy(dtype=float)
+    high = frame["High"].to_numpy(dtype=float)
+    low = frame["Low"].to_numpy(dtype=float)
+    volume = frame["Volume"].to_numpy(dtype=float)
+    n = len(close)
+    split_idx = int(n * SPLIT_RATIO)
+    if split_idx < 15 or (n - split_idx) < 5:
+        return None
+
+    cache = {}
+    for p in (7, 14, 21):
+        cache[("RSI", p)] = indicator_rsi(close, p)
+        cache[("MFI", p)] = indicator_mfi(high, low, close, volume, p)
+    for p in (7, 14, 20):
+        cache[("CCI", p)] = indicator_cci(high, low, close, p)
+    if fng_series is not None:
+        aligned = fng_series.reindex(frame.index, method="ffill").to_numpy(dtype=float)
+        cache[("Fear & Greed", None)] = aligned
+
+    best = None
+    best_train_roi = float("-inf")
+
+    for ind_name, grid in INDICATOR_GRIDS.items():
+        if ind_name == "Fear & Greed" and fng_series is None:
+            continue
+        for config in grid["configs"]:
+            key = (ind_name, config.get("period"))
+            values = cache.get(key)
+            if values is None:
+                continue
+            signal = np.ones(n, dtype=bool)
+            if config.get("useLower"):
+                signal &= values < config["lower"]
+            if config.get("useUpper"):
+                signal &= values < config["upper"]
+            ev = evaluate_signal(close, signal, split_idx, 1.0)
+            if ev["train_buy_pct"] < MIN_BUY_PCT:
+                continue
+            if ev["train_roi"] <= best_train_roi:
+                continue
+            if ev["train_roi"] <= 0:
+                continue
+            best_train_roi = ev["train_roi"]
+            best = {
+                "indicator": ind_name,
+                "params": config,
+                "label": format_label(ind_name, config),
+                **ev,
+            }
+    return best
+
+
+def latest_signal_check(best: dict, frame: pd.DataFrame,
+                        fng_series: pd.Series | None
+                        ) -> tuple[bool, float | None, str | None]:
+    """Return (matches, current_value, indicator_name)."""
+    ind_name = best["indicator"]
+    if ind_name == "none":
+        return True, None, None
+    config = best["params"]
+    close = frame["Close"].to_numpy(dtype=float)
+    high = frame["High"].to_numpy(dtype=float)
+    low = frame["Low"].to_numpy(dtype=float)
+    volume = frame["Volume"].to_numpy(dtype=float)
+    p = config.get("period")
+
+    if ind_name == "RSI":
+        values, name = indicator_rsi(close, p), f"RSI({p})"
+    elif ind_name == "MFI":
+        values, name = indicator_mfi(high, low, close, volume, p), f"MFI({p})"
+    elif ind_name == "CCI":
+        values, name = indicator_cci(high, low, close, p), f"CCI({p})"
+    elif ind_name == "Fear & Greed":
+        if fng_series is None:
+            return False, None, "Fear & Greed"
+        values = fng_series.reindex(frame.index, method="ffill").to_numpy(dtype=float)
+        name = "Fear & Greed"
+    else:
+        return False, None, None
+
+    if len(values) == 0 or not np.isfinite(values[-1]):
+        return False, None, name
+    v = float(values[-1])
+    matched = True
+    if config.get("useLower") and not (v < config["lower"]):
+        matched = False
+    if config.get("useUpper") and not (v < config["upper"]):
+        matched = False
+    return matched, v, name
+
+
+def loopback_return(frame: pd.DataFrame) -> float:
+    close = frame["Close"].dropna()
+    if len(close) < 2:
+        return 0.0
+    first = float(close.iloc[0])
+    if first <= 0:
+        return 0.0
+    return float((float(close.iloc[-1]) / first - 1) * 100)
+
+
+# ---------------------------------------------------------------------------
+# Message rendering + Telegram delivery
+# ---------------------------------------------------------------------------
 def chunks(header: str, blocks: list[str], limit: int = TELEGRAM_LIMIT):
-    """Yield messages built from header + multi-line blocks, respecting limit."""
     current = header
     for block in blocks:
         candidate = current + "\n" + block
@@ -345,25 +622,45 @@ def chunks(header: str, blocks: list[str], limit: int = TELEGRAM_LIMIT):
     yield current
 
 
-def build_category_messages(
+def build_messages(
     as_of: str,
-    grouped: dict[str, list[tuple[str, list[str]]]],
+    alerts_by_category: dict[str, list[dict]],
+    market_alerts: list[dict],
+    header_label: str,
+    score_label: str,
     limit: int = TELEGRAM_LIMIT,
 ) -> list[str]:
-    """Render one or more Telegram messages per category."""
-    messages: list[str] = []
-    for category, assets in grouped.items():
-        blocks = []
-        for ticker, hits in assets:
-            indicator_lines = "\n".join(f"  • {hit}" for hit in hits)
-            blocks.append(f"- {ticker}\n{indicator_lines}")
+    scored: list[tuple[str, list[dict], float]] = []
+    for category, entries in alerts_by_category.items():
+        avg_profit = sum(e["profit"] for e in entries) / len(entries)
+        scored.append((category, entries, avg_profit))
+    scored.sort(key=lambda x: x[2], reverse=True)
 
-        asset_count = len(assets)
-        plural = "s" if asset_count != 1 else ""
+    messages: list[str] = []
+    for category, entries, avg_profit in scored:
+        entries_sorted = sorted(entries, key=lambda e: e["profit"], reverse=True)
+        n = len(entries_sorted)
+        plural = "s" if n != 1 else ""
         header = (
-            f"({as_of}) {category} — {asset_count} asset{plural}"
+            f"{header_label} ({as_of})\n"
+            f"{category} — {n} asset{plural} — {score_label} {avg_profit:+.1f}%"
         )
+        blocks = []
+        for entry in entries_sorted:
+            lines = "\n".join(f"  • {line}" for line in entry["lines"])
+            blocks.append(f"- {entry['ticker']}\n{lines}")
         messages.extend(chunks(header, blocks, limit))
+
+    if market_alerts:
+        n = len(market_alerts)
+        plural = "s" if n != 1 else ""
+        header = f"{header_label} ({as_of})\nMarket — {n} signal{plural}"
+        blocks = [
+            f"- Fear & Greed\n  • {m['value']} ({m['day']})"
+            for m in market_alerts
+        ]
+        messages.extend(chunks(header, blocks, limit))
+
     return messages
 
 
@@ -397,119 +694,179 @@ def send_telegram(messages: list[str]) -> int:
     return 0
 
 
-def run_alert(tickers: list[str], categories: dict[str, str], dry_run: bool) -> int:
-    with warnings.catch_warnings():
-        pandas4_warning = getattr(pd.errors, "Pandas4Warning", None)
-        if pandas4_warning:
-            warnings.simplefilter("ignore", pandas4_warning)
-        try:
-            data = yf.download(
-                tickers,
-                period="1y",
-                interval="1d",
-                auto_adjust=False,
-                progress=False,
-                group_by="ticker",
-                threads=True,
-            )
-        except Exception as error:
-            print(f"Daily data download failed: {error}", file=sys.stderr)
-            return 1
-    if data.empty:
-        print("No daily data returned.", file=sys.stderr)
-        return 1
+# ---------------------------------------------------------------------------
+# Alert
+# ---------------------------------------------------------------------------
+def run_alert(
+    tickers: list[str],
+    categories: dict[str, str],
+    loopback_days: int,
+    optimize: bool,
+    dry_run: bool,
+) -> int:
+    fng_series: pd.Series | None = None
+    try:
+        fng_values = read_fear_greed()
+        fng_series = build_fng_series(fng_values)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+        print(f"Fear & Greed: {error}", file=sys.stderr)
 
-    as_of = data.index[-1].date().isoformat()
-    grouped: dict[str, list[tuple[str, list[str]]]] = {}
+    alerts_by_category: dict[str, list[dict]] = {}
+    market_alerts: list[dict] = []
     scanned = 0
+    latest_days: list[str] = []
 
     for ticker in tickers:
-        if (ticker, "Close") not in data.columns:
-            print(f"{ticker}: no data", file=sys.stderr)
+        frame = load_local_frame(ticker, loopback_days)
+        if frame is None:
+            print(f"{ticker}: no local data (run --update first)", file=sys.stderr)
             continue
-        frame = data[ticker].dropna(subset=["Close"])
-        if len(frame) < 20:
-            print(f"{ticker}: not enough daily bars", file=sys.stderr)
+        if len(frame) < MIN_FRAME_DAYS:
+            print(f"{ticker}: only {len(frame)} rows (< {MIN_FRAME_DAYS})", file=sys.stderr)
             continue
 
-        values = calculate(frame)
         scanned += 1
-        day = frame.index[-1].date().isoformat()
-        detail = "  ".join(
-            f"{name} {value:.1f}" for name, value in values.items() if math.isfinite(value)
-        )
-        hits = [
-            f"{name} {value:.1f}"
-            for name, value in values.items()
-            if math.isfinite(value) and value < THRESHOLDS[name]
-        ]
-        if hits:
-            print(f"{ticker} {day}  {detail}  -> ALERT: {', '.join(hits)}")
-            category = categories.get(ticker, "Other")
-            grouped.setdefault(category, []).append((ticker, hits))
-        else:
-            print(f"{ticker} {day}  {detail}  -> no alert")
+        latest_day = frame.index[-1].date().isoformat()
+        latest_days.append(latest_day)
+        category = categories.get(ticker, "Other")
 
-    try:
-        fear_values = read_fear_greed()
-        latest = latest_fear_greed(fear_values, as_of)
-        if latest is None:
-            print("Fear & Greed: no value on or before " + as_of, file=sys.stderr)
+        is_crypto = (category == "Crypto"
+                     or ticker.upper().endswith("-USD")
+                     or ticker.upper().endswith("-USDT"))
+        ticker_fng = fng_series if is_crypto else None
+
+        if optimize:
+            best = find_best_config(frame, ticker_fng)
+            if best is None:
+                print(f"{ticker} {latest_day} -> no optimized strategy")
+                continue
+
+            if best["test_roi"] <= 0:
+                print(f"{ticker} {latest_day} -> weak out-of-sample "
+                      f"(test {best['test_roi']:+.1f}%), skipped")
+                continue
+
+            matched, current_value, ind_name = latest_signal_check(best, frame, ticker_fng)
+            if matched:
+                now_line = (f"Now {ind_name} = {current_value:.1f}"
+                            if current_value is not None else "Now — (no live value)")
+                entry = {
+                    "ticker": ticker,
+                    "profit": best["test_roi"],
+                    "lines": [
+                        plain_rule(best["indicator"], best["params"]),
+                        now_line,
+                        f"Backtest: {best['train_roi']:+.1f}% in-sample → "
+                        f"{best['test_roi']:+.1f}% out-of-sample",
+                        f"Triggers on ~{best['test_buy_pct']:.0f}% of days",
+                        verdict(best["train_roi"], best["test_roi"]),
+                    ],
+                }
+                alerts_by_category.setdefault(category, []).append(entry)
+                print(f"{ticker} {latest_day} -> MATCH: "
+                      f"{plain_rule(best['indicator'], best['params'])} "
+                      f"(train {best['train_roi']:+.1f}% → test {best['test_roi']:+.1f}%)")
+            else:
+                print(f"{ticker} {latest_day} -> no match ({best['label']})")
         else:
-            fear_day, fear_value = latest
+            values = calculate_latest(frame)
+            hits = [
+                f"{name} {value:.1f}"
+                for name, value in values.items()
+                if math.isfinite(value) and value < THRESHOLDS[name]
+            ]
+            if hits:
+                profit = loopback_return(frame)
+                alerts_by_category.setdefault(category, []).append({
+                    "ticker": ticker,
+                    "profit": profit,
+                    "lines": hits,
+                })
+                print(f"{ticker} {latest_day} -> ALERT: {', '.join(hits)} ({profit:+.1f}%)")
+            else:
+                print(f"{ticker} {latest_day} -> no alert")
+
+    if scanned == 0:
+        print("No local data found. Run --update first.", file=sys.stderr)
+        return 1
+
+    as_of = max(latest_days) if latest_days else date.today().isoformat()
+
+    if not optimize and fng_series is not None:
+        eligible = fng_series[fng_series.index <= pd.Timestamp(as_of)]
+        if not eligible.empty:
+            fear_day = eligible.index[-1].date().isoformat()
+            fear_value = int(eligible.iloc[-1])
             print(f"Fear & Greed {fear_day}: {fear_value}")
             if fear_value < FEAR_GREED_THRESHOLD:
-                grouped.setdefault("Market", []).append(
-                    ("Fear & Greed", [f"Fear & Greed {fear_value} ({fear_day})"])
-                )
+                market_alerts.append({"value": fear_value, "day": fear_day})
                 print(f"Fear & Greed {fear_day} {fear_value} -> ALERT")
-            else:
-                print(f"Fear & Greed {fear_day} {fear_value} -> no alert")
-    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
-        print(f"Fear & Greed: ERROR: {error}", file=sys.stderr)
 
-    alert_count = sum(len(assets) for assets in grouped.values())
-    print(f"\nScanned {scanned} pairs on 1D; {alert_count} asset(s) hit at least one threshold.")
-    if scanned == 0:
-        return 1
-    if not grouped:
+    total = sum(len(v) for v in alerts_by_category.values()) + len(market_alerts)
+    print(f"\nScanned {scanned} assets; {total} alert(s).")
+    if total == 0:
         return 0
 
-    messages = build_category_messages(as_of, grouped)
+    if optimize:
+        header_label = "Daily strategy matches"
+        score_label = "avg out-of-sample"
+    else:
+        header_label = "Daily oversold alerts"
+        score_label = f"avg {loopback_days}d return"
+
+    messages = build_messages(as_of, alerts_by_category, market_alerts,
+                              header_label, score_label)
+
+    scored = sorted(
+        ((cat, sum(e["profit"] for e in entries) / len(entries), len(entries))
+         for cat, entries in alerts_by_category.items()),
+        key=lambda x: x[1], reverse=True,
+    )
+    if scored:
+        print("Priority order (most profitable first):")
+        for rank, (cat, avg, n) in enumerate(scored, start=1):
+            print(f"  {rank}. {cat} — {n} asset(s) — {score_label} {avg:+.1f}%")
+        if market_alerts:
+            print(f"  {len(scored) + 1}. Market — Fear & Greed")
+
     if dry_run:
-        print(
-            f"Dry run: would send {len(messages)} message(s) covering "
-            f"{alert_count} alert(s) to Telegram."
-        )
-        for message in messages:
-            print(message)
+        print(f"\nDry run: would send {len(messages)} message(s).")
+        for msg in messages:
+            print(msg)
             print()
         return 0
     return send_telegram(messages)
 
 
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--update", action="store_true", help="Refresh the daily snapshots in data/.")
-    parser.add_argument("--alert", action="store_true", help="Scan the 1D timeframe and send oversold alerts.")
-    parser.add_argument(
-        "--ticker",
-        action="append",
-        help="Limit --update and --alert to this ticker (can be specified more than once).",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Validate --update without changing files and show --alert results without sending Telegram.",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print a status line for every ticker during --update.",
-    )
+    parser.add_argument("--update", action="store_true",
+                        help="Refresh the daily snapshots in data/.")
+    parser.add_argument("--alert", action="store_true",
+                        help="Scan the latest local candle and notify.")
+    parser.add_argument("--optimize", action="store_true",
+                        help="With --alert: grid-search the best strategy per asset and alert only matches.")
+    parser.add_argument("--loopback-days", type=int, default=365,
+                        help="Analysis window in days (default: 365).")
+    parser.add_argument("--ticker", action="append",
+                        help="Limit --update and --alert to this ticker (can be repeated).")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Validate without changing files and print alerts without sending Telegram.")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Print a status line for every ticker during --update.")
     args = parser.parse_args()
+
     if not args.update and not args.alert:
         parser.error("choose --update, --alert, or both")
+    if args.optimize and not args.alert:
+        parser.error("--optimize requires --alert")
+    if args.alert and args.loopback_days < 30:
+        parser.error("--loopback-days must be >= 30")
+    if args.alert and args.optimize and args.loopback_days < 90:
+        parser.error("--optimize requires --loopback-days >= 90")
 
     catalogue = load_catalogue()
     tickers = args.ticker or list(catalogue)
@@ -522,7 +879,8 @@ def main() -> int:
     if args.update:
         status |= run_update(tickers, end, args.dry_run, args.verbose)
     if args.alert:
-        status |= run_alert(tickers, catalogue, args.dry_run)
+        status |= run_alert(tickers, catalogue, args.loopback_days,
+                            args.optimize, args.dry_run)
     return status
 
 
