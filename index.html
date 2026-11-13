@@ -266,21 +266,12 @@
           <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="general-top-chart"></div>
         </section>
+        <section class="general-chart-card wide">
+          <h4>Normalized price by category (start = 100)</h4>
+          <p class="hint">Each asset starts at 100 on its first available date. Category lines average assets equally and carry forward the last close for up to 7 days; the overall line weights categories equally. Coverage dates can differ.</p>
+          <div class="general-chart" id="general-normalized-chart"></div>
+        </section>
       </div>
-
-      <details class="dashboard-details">
-        <summary>More charts: winners and risk</summary>
-        <div class="general-chart-grid">
-          <section class="general-chart-card">
-            <h4>Winners vs. non-winners</h4>
-            <div class="general-chart" id="general-breadth-chart"></div>
-          </section>
-          <section class="general-chart-card">
-            <h4>DCA return vs. underlying asset drawdown</h4>
-            <div class="general-chart" id="general-risk-chart"></div>
-          </section>
-        </div>
-      </details>
 
       <details class="dashboard-details">
         <summary>Category statistics and momentum</summary>
@@ -328,28 +319,12 @@
           <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="category-top-chart"></div>
         </section>
+        <section class="general-chart-card wide">
+          <h4>Normalized price by asset (start = 100)</h4>
+          <p class="hint">Each asset starts at 100 on its first available date. The category average weights assets equally and carries forward the last close for up to 7 days; coverage dates can differ.</p>
+          <div class="general-chart" id="category-normalized-chart"></div>
+        </section>
       </div>
-      <details class="dashboard-details">
-        <summary>More charts: breadth, risk and monthly patterns</summary>
-        <div class="general-chart-grid">
-          <section class="general-chart-card">
-            <h4>Winners vs. non-winners</h4>
-            <div class="general-chart" id="category-winners-chart"></div>
-          </section>
-          <section class="general-chart-card">
-            <h4>DCA return vs. underlying asset drawdown</h4>
-            <div class="general-chart" id="category-risk-chart"></div>
-          </section>
-        <section class="general-chart-card wide">
-          <h4>Monthly price return by asset</h4>
-          <div class="general-chart" id="category-monthly-chart"></div>
-        </section>
-        <section class="general-chart-card wide">
-          <h4>DCA seasonality by asset (median by calendar month)</h4>
-          <div class="general-chart" id="category-seasonality-chart"></div>
-        </section>
-        </div>
-      </details>
       <details class="dashboard-details">
         <summary>Per-asset statistics</summary>
         <div id="category-members"></div>
@@ -464,7 +439,14 @@ const TRANSLATIONS_ES = {
   "Visual overview": "Resumen visual",
   "Median DCA return by category": "Rentabilidad mediana del DCA por categoría",
   "Top 10 assets: DCA vs. price return": "10 activos principales: DCA frente a rentabilidad del precio",
-  "More charts: winners and risk": "Más gráficos: resultados y riesgo",
+  "Normalized price by category (start = 100)": "Precio normalizado por categoría (inicio = 100)",
+  "Each asset starts at 100 on its first available date. Category lines average assets equally and carry forward the last close for up to 7 days; the overall line weights categories equally. Coverage dates can differ.": "Cada activo parte de 100 en su primera fecha disponible. Las líneas de categoría ponderan los activos por igual y mantienen el último cierre durante un máximo de 7 días; la línea general pondera las categorías por igual. Las fechas cubiertas pueden variar.",
+  "Normalized price by asset (start = 100)": "Precio normalizado por activo (inicio = 100)",
+  "Each asset starts at 100 on its first available date. The category average weights assets equally and carries forward the last close for up to 7 days; coverage dates can differ.": "Cada activo parte de 100 en su primera fecha disponible. La media de la categoría pondera los activos por igual y mantiene el último cierre durante un máximo de 7 días; las fechas cubiertas pueden variar.",
+  "All categories average": "Media de todas las categorías",
+  "Category average": "Media de la categoría",
+  "Normalized price (start = 100)": "Precio normalizado (inicio = 100)",
+  "No usable normalized price history.": "No hay historial de precios normalizados válido.",
   "Winners vs. non-winners": "Activos con resultado positivo y no positivo",
   "DCA return vs. underlying asset drawdown": "Rentabilidad DCA frente a caída máxima del precio",
   "Category statistics and momentum": "Estadísticas y tendencia por categoría",
@@ -477,7 +459,6 @@ const TRANSLATIONS_ES = {
   "Select a category to see its summary.": "Selecciona una categoría para ver el resumen.",
   "Plain DCA across the assets in this category. Returns are calculated over each asset's available history in the selected look-back.": "DCA simple para los activos de esta categoría. La rentabilidad usa el historial disponible de cada activo dentro del período seleccionado.",
   "DCA return by asset": "Rentabilidad DCA por activo",
-  "More charts: breadth, risk and monthly patterns": "Más gráficos: resultados, riesgo y patrones mensuales",
   "Monthly price return by asset": "Rentabilidad mensual del precio por activo",
   "DCA seasonality by asset (median by calendar month)": "Estacionalidad DCA por activo (mediana mensual)",
   "Per-asset statistics": "Estadísticas por activo",
@@ -763,6 +744,11 @@ function setLanguage(nextLanguage) {
   document.documentElement.lang = language;
   document.title = language === "es" ? "Panel de inversión periódica (DCA)" : "Daily DCA Dashboard";
   translateSubtree(document.body);
+  if (generalAnalysisData) {
+    const activeTab = document.querySelector(".analysis-tab[aria-selected='true']");
+    if (activeTab.id === "general-tab") renderGeneralCharts(generalAnalysisData);
+    else if (activeTab.id === "category-tab") renderCategoryAnalysis();
+  }
 }
 
 const translationObserver = new MutationObserver(records => {
@@ -1410,45 +1396,6 @@ function assetStats(data) {
   };
 }
 
-/* Monthly price return and monthly DCA return, keyed "YYYY-MM".
-   DCA return for a month = month-end close / harmonic mean of daily closes - 1. */
-function monthlyReturns(data) {
-  const out = new Map();
-  let key = null, first = 0, last = 0, invSum = 0, count = 0;
-  const flush = () => {
-    if (key === null || count < 5) return;
-    out.set(key, {
-      price: (last / first - 1) * 100,
-      dca: (last / (count / invSum) - 1) * 100
-    });
-  };
-  for (let i = 0; i < data.dates.length; i++) {
-    const c = data.close[i];
-    if (!(c > 0)) continue;
-    const k = data.dates[i].slice(0, 7);
-    if (k !== key) { flush(); key = k; first = c; invSum = 0; count = 0; }
-    last = c;
-    invSum += 1 / c;
-    count++;
-  }
-  flush();
-  return out;
-}
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/* Median DCA return per calendar month from a monthlyReturns() map. */
-function seasonalityFromMonths(months) {
-  const byMonth = new Map();
-  months.forEach((month, key) => {
-    const index = Number(key.slice(5, 7)) - 1;
-    if (!byMonth.has(index)) byMonth.set(index, []);
-    byMonth.get(index).push(month.dca);
-  });
-  return MONTH_LABELS.map((_, i) => byMonth.has(i) ? median(byMonth.get(i)) : null);
-}
-
 /* Daily "is the close above its simple moving average" flags. */
 function detectAnomalies(data, mddPct) {
   const closes = data.close;
@@ -1494,6 +1441,8 @@ async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
           name, ticker, category,
           roi: sim.roiPct[last],
           priceRet: (data.close[last] / data.close[0] - 1) * 100,
+          dates: data.dates,
+          closes: data.close,
           mdd: mddPct,
           ...stats,
           days: data.close.length,
@@ -1588,28 +1537,103 @@ function renderGeneralPlot(id, traces, layout) {
   });
 }
 
-function renderGeneralCharts(analysis) {
-  renderGeneralPlot("general-breadth-chart", [{
-    type: "pie",
-    labels: ["Positive DCA return", "Zero or negative return"],
-    values: [analysis.winners, analysis.valid.length - analysis.winners],
-    hole: 0.62,
-    sort: false,
-    marker: { colors: ["#00cc96", "#ef553b"] },
-    textinfo: "label+percent",
-    hovertemplate: "%{label}<br>%{value} assets (%{percent})<extra></extra>"
-  }], {
-    height: 300,
-    margin: { l: 16, r: 16, t: 8, b: 12 },
-    showlegend: false,
-    annotations: [{
-      text: analysis.valid.length + "<br>assets",
-      showarrow: false,
-      font: { size: 19, color: "#fafafa" }
-    }]
+function normalizedAssetSeries(asset) {
+  if (!Array.isArray(asset.dates) || !Array.isArray(asset.closes)) return null;
+  const firstClose = asset.closes.find(close => Number.isFinite(close) && close > 0);
+  if (!Number.isFinite(firstClose)) return null;
+  const dates = [];
+  const values = [];
+  asset.closes.forEach((close, index) => {
+    if (!Number.isFinite(close) || close <= 0 || !asset.dates[index]) return;
+    dates.push(asset.dates[index]);
+    values.push(close / firstClose * 100);
+  });
+  return dates.length ? { dates, values } : null;
+}
+
+function averageNormalizedSeries(series) {
+  const dates = [...new Set(series.flatMap(item => item.dates))].sort();
+  const maxCarryForwardMs = 7 * 86400000;
+  const currentSeries = series.map(item => ({
+    ...item,
+    index: 0,
+    lastValue: null,
+    lastDate: null
+  }));
+  return {
+    dates,
+    values: dates.map(date => {
+      let sum = 0;
+      let count = 0;
+      currentSeries.forEach(item => {
+        while (item.index < item.dates.length && item.dates[item.index] <= date) {
+          item.lastValue = item.values[item.index];
+          item.lastDate = item.dates[item.index];
+          item.index++;
+        }
+        if (item.lastValue === null) return;
+        const ageMs = Date.parse(date + "T00:00:00Z") -
+          Date.parse(item.lastDate + "T00:00:00Z");
+        if (ageMs <= maxCarryForwardMs) {
+          sum += item.lastValue;
+          count++;
+        }
+      });
+      return count ? sum / count : null;
+    })
+  };
+}
+
+function renderGeneralNormalizedChart(analysis) {
+  const assetsByCategory = new Map();
+  analysis.rows.forEach(row => {
+    if (row.roi === null) return;
+    const series = normalizedAssetSeries(row);
+    if (!series) return;
+    if (!assetsByCategory.has(row.category)) assetsByCategory.set(row.category, []);
+    assetsByCategory.get(row.category).push(series);
   });
 
+  const categorySeries = [...assetsByCategory.entries()].map(([name, assets]) => ({
+    name,
+    ...averageNormalizedSeries(assets)
+  })).filter(category => category.dates.length);
+  if (!categorySeries.length) {
+    clearPlot("general-normalized-chart", "No usable normalized price history.");
+    return;
+  }
+
+  const overall = averageNormalizedSeries(categorySeries);
+  const traces = categorySeries.map(category => ({
+    type: "scatter",
+    mode: "lines",
+    name: translateString(category.name),
+    x: category.dates,
+    y: category.values,
+    hovertemplate: "%{x|%Y-%m-%d}<br>%{y:.2f}<extra>%{fullData.name}</extra>"
+  }));
+  traces.push({
+    type: "scatter",
+    mode: "lines",
+    name: translateString("All categories average"),
+    x: overall.dates,
+    y: overall.values,
+    line: { color: "#ffffff", width: 4 },
+    hovertemplate: "%{x|%Y-%m-%d}<br>%{y:.2f}<extra>%{fullData.name}</extra>"
+  });
+  renderGeneralPlot("general-normalized-chart", traces, {
+    height: 440,
+    margin: { l: 75, r: 20, t: 12, b: 55 },
+    hovermode: "x unified",
+    legend: { orientation: "h", y: -0.25 },
+    xaxis: { title: translateString("Date"), type: "date", gridcolor: "#2d3441" },
+    yaxis: { title: translateString("Normalized price (start = 100)"), gridcolor: "#2d3441" }
+  });
+}
+
+function renderGeneralCharts(analysis) {
   const categories = analysis.categories;
+  renderGeneralNormalizedChart(analysis);
   renderGeneralPlot("general-category-chart", [{
     type: "bar",
     orientation: "h",
@@ -1666,41 +1690,6 @@ function renderGeneralCharts(analysis) {
     }
   });
 
-  const palette = [
-    "#00cc96", "#636efa", "#ef553b", "#ab63fa", "#ffa15a", "#19d3f3",
-    "#ff6692", "#b6e880", "#ff97ff", "#fecb52", "#1f77b4", "#2ca02c",
-    "#d62728", "#9467bd"
-  ];
-  const categoryColors = new Map(
-    [...new Set(analysis.valid.map(row => row.category))]
-      .map((category, index) => [category, palette[index % palette.length]])
-  );
-  const shownCategories = new Set();
-  const riskTraces = [...categoryColors.keys()].map(category => {
-    const assets = analysis.valid.filter(row => row.category === category);
-    const showlegend = !shownCategories.has(category);
-    shownCategories.add(category);
-    return {
-      type: "scattergl",
-      mode: "markers",
-      name: category,
-      showlegend,
-      x: assets.map(row => row.mdd),
-      y: assets.map(row => row.roi),
-      customdata: assets.map(row => [row.name, row.ticker]),
-      marker: { color: categoryColors.get(category), size: 9, opacity: 0.8 },
-      hovertemplate:
-        "%{customdata[0]} (%{customdata[1]})<br>DCA return: %{y:.2f}%" +
-        "<br>Maximum drawdown: %{x:.2f}%<extra>%{fullData.name}</extra>"
-    };
-  });
-  renderGeneralPlot("general-risk-chart", riskTraces, {
-    height: 390,
-    margin: { l: 72, r: 18, t: 12, b: 80 },
-    legend: { orientation: "h", y: -0.3, groupclick: "togglegroup" },
-    xaxis: { title: "Maximum drawdown (%)", gridcolor: "#2d3441", zeroline: true },
-    yaxis: { title: "DCA return (%)", gridcolor: "#2d3441", zeroline: true }
-  });
 }
 
 function clearPlot(id, message) {
@@ -1741,50 +1730,44 @@ function renderCategorySummary(results, rows, nameByTicker) {
 }
 
 function renderCategoryCharts(rows) {
-  const winners = rows.filter(r => r.roi > 0).length;
-  renderGeneralPlot("category-winners-chart", [{
-    type: "pie",
-    labels: ["Positive DCA ROI", "Zero or negative ROI"],
-    values: [winners, rows.length - winners],
-    hole: 0.62,
-    sort: false,
-    marker: { colors: ["#00cc96", "#ef553b"] },
-    textinfo: "label+percent",
-    hovertemplate: "%{label}<br>%{value} assets (%{percent})<extra></extra>"
-  }], {
-    height: 300,
-    margin: { l: 16, r: 16, t: 8, b: 12 },
-    showlegend: false,
-    annotations: [{
-      text: rows.length + "<br>assets",
-      showarrow: false,
-      font: { size: 19, color: "#fafafa" }
-    }]
-  });
-
-  renderGeneralPlot("category-risk-chart", [{
-    type: "scattergl",
-    mode: "markers",
-    x: rows.map(r => r.mdd),
-    y: rows.map(r => r.roi),
-    customdata: rows.map(r => [r.ticker, r.vol, r.sharpe]),
-    marker: {
-      color: rows.map(r => r.roi >= 0 ? "#00cc96" : "#ef553b"),
-      size: 9,
-      opacity: 0.8
-    },
-    hovertemplate: "%{customdata[0]}<br>DCA return: %{y:.2f}%" +
-      "<br>Maximum drawdown: %{x:.2f}%<br>Volatility: %{customdata[1]:.1f}%" +
-      "<br>Sharpe: %{customdata[2]:.2f}<extra></extra>"
-  }], {
-    height: 390,
-    margin: { l: 62, r: 16, t: 12, b: 48 },
-    xaxis: { title: "Maximum drawdown (%)", gridcolor: "#2d3441", zeroline: true },
-    yaxis: { title: "DCA return (%)", gridcolor: "#2d3441", zeroline: true }
-  });
-
-  const months = [...new Set(rows.flatMap(r => [...r.monthly.keys()]))].sort();
   const top = rows.slice(0, 10);
+  const assetSeries = rows.map(row => {
+    const series = normalizedAssetSeries(row);
+    return series ? { row, ...series } : null;
+  }).filter(Boolean);
+  if (!assetSeries.length) {
+    clearPlot("category-normalized-chart", "No usable normalized price history.");
+  } else {
+    const average = averageNormalizedSeries(assetSeries);
+    const traces = assetSeries.map(({ row, dates, values }) => ({
+      type: "scatter",
+      mode: "lines",
+      name: row.ticker,
+      x: dates,
+      y: values,
+      customdata: dates.map(() => row.name),
+      line: { width: 1 },
+      hovertemplate: "%{customdata} (%{fullData.name})<br>%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+    }));
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: translateString("Category average"),
+      x: average.dates,
+      y: average.values,
+      line: { color: "#ffffff", width: 4 },
+      hovertemplate: "%{x|%Y-%m-%d}<br>%{y:.2f}<extra>%{fullData.name}</extra>"
+    });
+    renderGeneralPlot("category-normalized-chart", traces, {
+      height: 500,
+      margin: { l: 75, r: 20, t: 12, b: 55 },
+      hovermode: "x unified",
+      legend: { orientation: "h", y: -0.25 },
+      xaxis: { title: translateString("Date"), type: "date", gridcolor: "#2d3441" },
+      yaxis: { title: translateString("Normalized price (start = 100)"), gridcolor: "#2d3441" }
+    });
+  }
+
   renderGeneralPlot("category-top-chart", [
     {
       type: "bar",
@@ -1842,44 +1825,6 @@ function renderCategoryCharts(rows) {
     }
   });
 
-  renderGeneralPlot("category-monthly-chart", [{
-    type: "heatmap",
-    x: months,
-    y: rows.map(r => r.ticker),
-    z: rows.map(r => months.map(key => {
-      const month = r.monthly.get(key);
-      return month ? month.price : null;
-    })),
-    zmid: 0,
-    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
-    hovertemplate: "%{y}<br>%{x}: %{z:.1f}%<extra></extra>",
-    colorbar: { title: "%", thickness: 12 }
-  }], {
-    height: Math.max(340, rows.length * 24 + 130),
-    margin: { l: 90, r: 20, t: 12, b: 65 },
-    xaxis: { type: "category", tickangle: -45, gridcolor: "#2d3441" },
-    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
-  });
-
-  const seasonality = rows.map(r => seasonalityFromMonths(r.monthly));
-  renderGeneralPlot("category-seasonality-chart", [{
-    type: "heatmap",
-    x: MONTH_LABELS,
-    y: rows.map(r => r.ticker),
-    z: seasonality,
-    zmid: 0,
-    text: seasonality.map(row => row.map(v => v === null ? "—" : v.toFixed(1))),
-    texttemplate: "%{text}",
-    textfont: { size: 9, color: "#fafafa" },
-    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
-    showscale: false,
-    hovertemplate: "%{y} · %{x}<br>Median DCA return: %{z:.2f}%<extra></extra>"
-  }], {
-    height: Math.max(340, rows.length * 24 + 100),
-    margin: { l: 90, r: 20, t: 12, b: 45 },
-    xaxis: { type: "category", gridcolor: "#2d3441" },
-    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
-  });
 }
 
 function renderCategoryDetails(results) {
@@ -1892,12 +1837,13 @@ function renderCategoryDetails(results) {
     return {
       ticker: r.ticker,
       name: nameByTicker.get(r.ticker) || r.ticker,
+      dates: r.data.dates,
+      closes: r.data.close,
       roi: sim.roiPct[last],
       priceRet: (r.data.close[last] / r.data.close[0] - 1) * 100,
       days: r.data.dates.length,
       mdd,
       anomalies: detectAnomalies(r.data, mdd),
-      monthly: monthlyReturns(r.data),
       ...assetStats(r.data)
     };
   }).sort((a, b) => b.roi - a.roi);
@@ -1905,8 +1851,7 @@ function renderCategoryDetails(results) {
   renderCategorySummary(results, rows, nameByTicker);
 
   if (!rows.length) {
-    ["category-winners-chart", "category-risk-chart", "category-top-chart",
-      "category-roi-chart", "category-monthly-chart", "category-seasonality-chart"]
+    ["category-top-chart", "category-roi-chart", "category-normalized-chart"]
       .forEach(id => clearPlot(id, "No usable price history for this category."));
     ["category-members", "category-momentum", "category-top", "category-anomalies"]
       .forEach(id => document.getElementById(id).innerHTML =
