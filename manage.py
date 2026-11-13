@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the daily snapshots current and alert on oversold daily indicators.
+"""Keep the daily snapshots current and alert on optimized DCA strategies.
 
 Usage:
     python manage.py --update                        # refresh data/*.js from Yahoo Finance
@@ -10,10 +10,9 @@ Usage:
 
 `--alert` reads the joined daily history from data/*.js (kept current by --update).
 `--loopback-days` (default 365) sets the analysis window for both modes.
-In --optimize mode, the grid search uses a chronological 70/30 train/test split,
-picks the best non-baseline config by train ROI (min 2% buy rate), and only
-alerts when the latest day's indicator values match that optimized strategy.
-Assets whose optimized config has a non-positive out-of-sample ROI are skipped.
+In --optimize mode, the grid search uses a chronological 70/30 train/test split
+and alerts only matches. Messages show the HIT RATE (probability of a
+profitable buy) in-sample vs out-of-sample, not the indicator rules.
 
 Telegram delivery needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the environment;
 without them alerts are printed to the console only.
@@ -446,12 +445,27 @@ def _segment_roi(close: np.ndarray, signal: np.ndarray, daily_amount: float = 1.
     return float((value / invested - 1) * 100)
 
 
+def _segment_hit_rate(close: np.ndarray, signal: np.ndarray) -> tuple[float, int]:
+    """% of buys that ended in profit (by segment end), plus the buy count."""
+    buys = int(signal.sum())
+    if buys == 0 or len(close) == 0:
+        return 0.0, 0
+    final_price = close[-1]
+    buy_prices = close[signal]
+    wins = int((final_price > buy_prices).sum())
+    return wins / buys, buys
+
+
 def evaluate_signal(close: np.ndarray, signal: np.ndarray, split_idx: int,
                     daily_amount: float = 1.0) -> dict:
     train_days = split_idx
     test_days = len(close) - split_idx
     train_sig = signal[:split_idx]
     test_sig = signal[split_idx:]
+
+    train_hr, train_n = _segment_hit_rate(close[:split_idx], train_sig)
+    test_hr, test_n = _segment_hit_rate(close[split_idx:], test_sig)
+
     return {
         "train_roi": _segment_roi(close[:split_idx], train_sig, daily_amount),
         "test_roi": _segment_roi(close[split_idx:], test_sig, daily_amount),
@@ -461,45 +475,37 @@ def evaluate_signal(close: np.ndarray, signal: np.ndarray, split_idx: int,
         "test_days": test_days,
         "train_buy_pct": float(train_sig.mean() * 100) if train_days else 0.0,
         "test_buy_pct": float(test_sig.mean() * 100) if test_days else 0.0,
+        "train_hit_rate": train_hr,
+        "test_hit_rate": test_hr,
+        "train_hit_n": train_n,
+        "test_hit_n": test_n,
     }
 
 
 def format_label(indicator: str, config: dict) -> str:
+    """Short label used only for console debug lines, never in messages."""
     base = "F&G" if indicator == "Fear & Greed" else f"{indicator}({config.get('period', '')})"
     parts = []
     if config.get("useLower"):
-        parts.append(f"{base} < {config['lower']} (oversold)")
+        parts.append(f"{base} < {config['lower']}")
     if config.get("useUpper"):
-        parts.append(f"{base} < {config['upper']} (not overbought)")
+        parts.append(f"{base} < {config['upper']}")
     return " & ".join(parts) if parts else base
 
 
-def plain_rule(indicator: str, config: dict) -> str:
-    """One-line plain-English description of what the rule does."""
-    base = "Fear & Greed" if indicator == "Fear & Greed" else f"{indicator}({config.get('period', '')})"
-    lower = config.get("lower")
-    upper = config.get("upper")
-    use_lower = config.get("useLower")
-    use_upper = config.get("useUpper")
-    if use_lower and not use_upper:
-        return f"Buy only when {base} drops below {lower} (deep-dip filter)"
-    if use_upper and not use_lower:
-        return f"Buy daily unless {base} is above {upper} (skip overbought days)"
-    if use_lower and use_upper:
-        return f"Buy only when {base} is below {lower} and below {upper}"
-    return "Buy every day (no filter)"
-
-
-def verdict(train_roi: float, test_roi: float) -> str:
-    """Plain-language confidence rating combining OOS profit and retention."""
+def verdict(train_roi: float, test_roi: float,
+            train_hr: float, test_hr: float, test_n: int) -> str:
+    """Confidence rating based on out-of-sample hit rate & its stability."""
     if test_roi <= 0:
         return "❌ Negative out-of-sample — skip"
-    ratio = test_roi / train_roi if train_roi > 0 else 1.0
-    if test_roi >= 10 and ratio >= 0.20:
-        return f"✓✓ Trustworthy — {test_roi:+.1f}% out-of-sample"
-    if test_roi >= 5 and ratio >= 0.15:
-        return f"✓ Reasonable — {test_roi:+.1f}% out-of-sample"
-    return f"⚠ Marginal — {test_roi:+.1f}% out-of-sample (train {train_roi:+.1f}%)"
+    if test_n < 5:
+        return f"⚠ Too few out-of-sample trades ({test_n}) — unreliable"
+    gap_pp = abs(train_hr - test_hr) * 100.0
+    if test_hr >= 0.55 and gap_pp <= 15.0:
+        return f"✓✓ Trustworthy — {test_hr*100:.0f}% OOS hit rate"
+    if test_hr >= 0.50 and gap_pp <= 25.0:
+        return f"✓ Reasonable — {test_hr*100:.0f}% OOS hit rate"
+    return f"⚠ Marginal — {test_hr*100:.0f}% OOS vs {train_hr*100:.0f}% in-sample"
 
 
 # ---------------------------------------------------------------------------
@@ -748,24 +754,28 @@ def run_alert(
 
             matched, current_value, ind_name = latest_signal_check(best, frame, ticker_fng)
             if matched:
-                now_line = (f"Now {ind_name} = {current_value:.1f}"
-                            if current_value is not None else "Now — (no live value)")
                 entry = {
                     "ticker": ticker,
                     "profit": best["test_roi"],
                     "lines": [
-                        plain_rule(best["indicator"], best["params"]),
-                        now_line,
-                        f"Backtest: {best['train_roi']:+.1f}% in-sample → "
+                        f"Hit rate: {best['train_hit_rate']*100:.0f}% in-sample "
+                        f"({best['train_hit_n']} trades) → "
+                        f"{best['test_hit_rate']*100:.0f}% out-of-sample "
+                        f"({best['test_hit_n']} trades)",
+                        f"ROI: {best['train_roi']:+.1f}% in-sample → "
                         f"{best['test_roi']:+.1f}% out-of-sample",
-                        f"Triggers on ~{best['test_buy_pct']:.0f}% of days",
-                        verdict(best["train_roi"], best["test_roi"]),
+                        f"Fires on ~{best['test_buy_pct']:.0f}% of days",
+                        verdict(best["train_roi"], best["test_roi"],
+                                best["train_hit_rate"], best["test_hit_rate"],
+                                best["test_hit_n"]),
                     ],
                 }
                 alerts_by_category.setdefault(category, []).append(entry)
                 print(f"{ticker} {latest_day} -> MATCH: "
-                      f"{plain_rule(best['indicator'], best['params'])} "
-                      f"(train {best['train_roi']:+.1f}% → test {best['test_roi']:+.1f}%)")
+                      f"hit {best['train_hit_rate']*100:.0f}%→"
+                      f"{best['test_hit_rate']*100:.0f}% "
+                      f"(roi {best['train_roi']:+.1f}%→"
+                      f"{best['test_roi']:+.1f}%)")
             else:
                 print(f"{ticker} {latest_day} -> no match ({best['label']})")
         else:
