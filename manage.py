@@ -10,9 +10,9 @@ Usage:
 
 `--alert` reads the joined daily history from data/*.js (kept current by --update).
 `--loopback-days` (default 365) sets the analysis window for both modes.
-In --optimize mode, the grid search uses a chronological 70/30 train/test split
-and alerts only matches. Messages show the HIT RATE (probability of a
-profitable buy) in-sample vs out-of-sample, not the indicator rules.
+In --optimize mode, the grid search reports a chronological train/test split
+and expanding walk-forward checks. Historical results are not forecasts or
+investment recommendations.
 
 Telegram delivery needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the environment;
 without them alerts are printed to the console only.
@@ -59,6 +59,7 @@ TELEGRAM_LIMIT = 4000
 SPLIT_RATIO = 0.70
 MIN_FRAME_DAYS = 60
 MIN_BUY_PCT = 2.0
+ESTIMATED_BUY_COST_RATE = 0.001
 
 # Mirrors index.html GRIDS: each config enables exactly one condition.
 INDICATOR_GRIDS = {
@@ -430,55 +431,66 @@ def calculate_latest(frame: pd.DataFrame) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
-# Simulation helpers (numpy, ROI is scale-invariant to daily_amount)
+# Simulation helpers (numpy)
 # ---------------------------------------------------------------------------
-def _segment_roi(close: np.ndarray, signal: np.ndarray, daily_amount: float = 1.0) -> float:
-    n_buys = int(signal.sum())
-    if n_buys == 0 or len(close) == 0:
-        return 0.0
-    buy_prices = close[signal]
-    if (buy_prices <= 0).any():
-        return 0.0
-    shares = float((daily_amount / buy_prices).sum())
-    invested = daily_amount * n_buys
-    value = shares * close[-1]
-    return float((value / invested - 1) * 100)
+def _execution_signal(signal: np.ndarray) -> np.ndarray:
+    execution = np.zeros(len(signal), dtype=bool)
+    if len(signal) > 1:
+        execution[1:] = signal[:-1]
+    return execution
 
 
-def _segment_hit_rate(close: np.ndarray, signal: np.ndarray) -> tuple[float, int]:
-    """% of buys that ended in profit (by segment end), plus the buy count."""
-    buys = int(signal.sum())
-    if buys == 0 or len(close) == 0:
-        return 0.0, 0
-    final_price = close[-1]
-    buy_prices = close[signal]
-    wins = int((final_price > buy_prices).sum())
-    return wins / buys, buys
+def _segment_stats(close: np.ndarray, execution: np.ndarray,
+                   daily_amount: float = 1.0) -> dict[str, float | int]:
+    if len(close) == 0:
+        return {"roi": 0.0, "buys": 0, "days": 0, "profit": 0.0, "invested": 0.0,
+                "hit_rate": 0.0}
+    cash = 0.0
+    shares = 0.0
+    buys = 0
+    wins = 0
+    final_price = float(close[-1])
+    for price, should_buy in zip(close, execution):
+        cash += daily_amount
+        if should_buy and cash > 0 and price > 0:
+            basis = float(price) / (1.0 - ESTIMATED_BUY_COST_RATE)
+            shares += cash / basis
+            wins += int(final_price > basis)
+            cash = 0.0
+            buys += 1
+    invested = daily_amount * len(close)
+    profit = shares * final_price + cash - invested
+    return {
+        "roi": float(profit / invested * 100) if invested > 0 else 0.0,
+        "buys": buys,
+        "days": len(close),
+        "profit": float(profit),
+        "invested": float(invested),
+        "hit_rate": wins / buys if buys else 0.0,
+    }
 
 
 def evaluate_signal(close: np.ndarray, signal: np.ndarray, split_idx: int,
                     daily_amount: float = 1.0) -> dict:
+    execution = _execution_signal(signal)
     train_days = split_idx
     test_days = len(close) - split_idx
-    train_sig = signal[:split_idx]
-    test_sig = signal[split_idx:]
-
-    train_hr, train_n = _segment_hit_rate(close[:split_idx], train_sig)
-    test_hr, test_n = _segment_hit_rate(close[split_idx:], test_sig)
+    train = _segment_stats(close[:split_idx], execution[:split_idx], daily_amount)
+    test = _segment_stats(close[split_idx:], execution[split_idx:], daily_amount)
 
     return {
-        "train_roi": _segment_roi(close[:split_idx], train_sig, daily_amount),
-        "test_roi": _segment_roi(close[split_idx:], test_sig, daily_amount),
-        "train_buys": int(train_sig.sum()),
-        "test_buys": int(test_sig.sum()),
+        "train_roi": train["roi"],
+        "test_roi": test["roi"],
+        "train_buys": train["buys"],
+        "test_buys": test["buys"],
         "train_days": train_days,
         "test_days": test_days,
-        "train_buy_pct": float(train_sig.mean() * 100) if train_days else 0.0,
-        "test_buy_pct": float(test_sig.mean() * 100) if test_days else 0.0,
-        "train_hit_rate": train_hr,
-        "test_hit_rate": test_hr,
-        "train_hit_n": train_n,
-        "test_hit_n": test_n,
+        "train_buy_pct": float(train["buys"] / train_days * 100) if train_days else 0.0,
+        "test_buy_pct": float(test["buys"] / test_days * 100) if test_days else 0.0,
+        "train_hit_rate": train["hit_rate"],
+        "test_hit_rate": test["hit_rate"],
+        "train_hit_n": train["buys"],
+        "test_hit_n": test["buys"],
     }
 
 
@@ -495,17 +507,72 @@ def format_label(indicator: str, config: dict) -> str:
 
 def verdict(train_roi: float, test_roi: float,
             train_hr: float, test_hr: float, test_n: int) -> str:
-    """Confidence rating based on out-of-sample hit rate & its stability."""
+    """Describe historical test results without treating them as probabilities."""
     if test_roi <= 0:
         return "❌ Negative out-of-sample — skip"
     if test_n < 5:
         return f"⚠ Too few out-of-sample trades ({test_n}) — unreliable"
     gap_pp = abs(train_hr - test_hr) * 100.0
     if test_hr >= 0.55 and gap_pp <= 15.0:
-        return f"✓✓ Trustworthy — {test_hr*100:.0f}% OOS hit rate"
+        return f"Historical test: {test_hr*100:.0f}% of buys beat the segment-end price"
     if test_hr >= 0.50 and gap_pp <= 25.0:
-        return f"✓ Reasonable — {test_hr*100:.0f}% OOS hit rate"
-    return f"⚠ Marginal — {test_hr*100:.0f}% OOS vs {train_hr*100:.0f}% in-sample"
+        return f"Historical test: {test_hr*100:.0f}% of buys beat the segment-end price"
+    return f"⚠ Unstable historical result — {test_hr*100:.0f}% test vs {train_hr*100:.0f}% train"
+
+
+def walk_forward_validation(
+    close: np.ndarray,
+    candidates: list[tuple[str, dict, np.ndarray]],
+    daily_amount: float = 1.0,
+) -> dict[str, float | int]:
+    fractions = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+    baseline_signal = np.ones(len(close), dtype=bool)
+    baseline_execution = _execution_signal(baseline_signal)
+    strategy_profit = strategy_invested = 0.0
+    baseline_profit = baseline_invested = 0.0
+    folds = 0
+
+    for train_fraction, test_fraction in zip(fractions, fractions[1:]):
+        train_end = int(len(close) * train_fraction)
+        test_end = int(len(close) * test_fraction)
+        if train_end < 60 or test_end - train_end < 10:
+            continue
+
+        selected_signal = baseline_signal
+        selected_train_roi = float("-inf")
+        for _, _, signal in candidates:
+            execution = _execution_signal(signal)
+            train = _segment_stats(close[:train_end], execution[:train_end], daily_amount)
+            train_buy_pct = train["buys"] / train_end * 100
+            if train_buy_pct < MIN_BUY_PCT or train["roi"] <= selected_train_roi:
+                continue
+            selected_signal = signal
+            selected_train_roi = float(train["roi"])
+
+        selected_execution = _execution_signal(selected_signal)
+        test = _segment_stats(
+            close[train_end:test_end],
+            selected_execution[train_end:test_end],
+            daily_amount,
+        )
+        baseline = _segment_stats(
+            close[train_end:test_end],
+            baseline_execution[train_end:test_end],
+            daily_amount,
+        )
+        strategy_profit += float(test["profit"])
+        strategy_invested += float(test["invested"])
+        baseline_profit += float(baseline["profit"])
+        baseline_invested += float(baseline["invested"])
+        folds += 1
+
+    return {
+        "walk_forward_folds": folds,
+        "walk_forward_roi": strategy_profit / strategy_invested * 100
+        if strategy_invested else 0.0,
+        "walk_forward_baseline_roi": baseline_profit / baseline_invested * 100
+        if baseline_invested else 0.0,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +600,7 @@ def find_best_config(frame: pd.DataFrame, fng_series: pd.Series | None) -> dict 
 
     best = None
     best_train_roi = float("-inf")
+    candidates = [("none", {}, np.ones(n, dtype=bool))]
 
     for ind_name, grid in INDICATOR_GRIDS.items():
         if ind_name == "Fear & Greed" and fng_series is None:
@@ -547,6 +615,7 @@ def find_best_config(frame: pd.DataFrame, fng_series: pd.Series | None) -> dict 
                 signal &= values < config["lower"]
             if config.get("useUpper"):
                 signal &= values < config["upper"]
+            candidates.append((ind_name, config, signal))
             ev = evaluate_signal(close, signal, split_idx, 1.0)
             if ev["train_buy_pct"] < MIN_BUY_PCT:
                 continue
@@ -561,6 +630,10 @@ def find_best_config(frame: pd.DataFrame, fng_series: pd.Series | None) -> dict 
                 "label": format_label(ind_name, config),
                 **ev,
             }
+    if best is not None:
+        best.update(walk_forward_validation(close, candidates))
+        baseline = evaluate_signal(close, np.ones(n, dtype=bool), split_idx, 1.0)
+        best["test_baseline_roi"] = baseline["test_roi"]
     return best
 
 
@@ -747,9 +820,19 @@ def run_alert(
                 print(f"{ticker} {latest_day} -> no optimized strategy")
                 continue
 
-            if best["test_roi"] <= 0:
-                print(f"{ticker} {latest_day} -> weak out-of-sample "
-                      f"(test {best['test_roi']:+.1f}%), skipped")
+            if best["walk_forward_folds"] < 3:
+                print(f"{ticker} {latest_day} -> insufficient walk-forward history "
+                      f"({best['walk_forward_folds']} folds), skipped")
+                continue
+            if best["walk_forward_roi"] <= best["walk_forward_baseline_roi"]:
+                print(f"{ticker} {latest_day} -> walk-forward did not beat DCA "
+                      f"({best['walk_forward_roi']:+.1f}% vs "
+                      f"{best['walk_forward_baseline_roi']:+.1f}%), skipped")
+                continue
+            if best["test_roi"] <= 0 or best["test_roi"] <= best["test_baseline_roi"]:
+                print(f"{ticker} {latest_day} -> test did not beat DCA "
+                      f"({best['test_roi']:+.1f}% vs "
+                      f"{best['test_baseline_roi']:+.1f}%), skipped")
                 continue
 
             matched, current_value, ind_name = latest_signal_check(best, frame, ticker_fng)
@@ -758,13 +841,22 @@ def run_alert(
                     "ticker": ticker,
                     "profit": best["test_roi"],
                     "lines": [
-                        f"Hit rate: {best['train_hit_rate']*100:.0f}% in-sample "
-                        f"({best['train_hit_n']} trades) → "
-                        f"{best['test_hit_rate']*100:.0f}% out-of-sample "
-                        f"({best['test_hit_n']} trades)",
+                        f"Historical buys above segment-end price: "
+                        f"{best['test_hit_rate']*100:.0f}% "
+                        f"({best['test_hit_n']} simulated buy days; not a probability)",
                         f"ROI: {best['train_roi']:+.1f}% in-sample → "
-                        f"{best['test_roi']:+.1f}% out-of-sample",
-                        f"Fires on ~{best['test_buy_pct']:.0f}% of days",
+                        f"{best['test_roi']:+.1f}% out-of-sample "
+                        f"(DCA {best['test_baseline_roi']:+.1f}%)",
+                        f"Walk-forward: {best['walk_forward_roi']:+.1f}% vs "
+                        f"DCA {best['walk_forward_baseline_roi']:+.1f}% "
+                        f"({best['walk_forward_folds']} rolling tests)",
+                        f"{best['label']} — simulated entry at the next close after signal",
+                        (f"Latest {ind_name} value: {current_value:.1f}; "
+                         "this is a historical rule match, not a buy recommendation"
+                         if current_value is not None
+                         else "The rule matches historically; this is not a buy recommendation"),
+                        f"Assumes {ESTIMATED_BUY_COST_RATE*100:.1f}% buy cost; "
+                        "cash not spent remains in the portfolio",
                         verdict(best["train_roi"], best["test_roi"],
                                 best["train_hit_rate"], best["test_hit_rate"],
                                 best["test_hit_n"]),
@@ -772,10 +864,11 @@ def run_alert(
                 }
                 alerts_by_category.setdefault(category, []).append(entry)
                 print(f"{ticker} {latest_day} -> MATCH: "
-                      f"hit {best['train_hit_rate']*100:.0f}%→"
+                      f"historical buys {best['train_hit_rate']*100:.0f}%→"
                       f"{best['test_hit_rate']*100:.0f}% "
-                      f"(roi {best['train_roi']:+.1f}%→"
-                      f"{best['test_roi']:+.1f}%)")
+                      f"(walk-forward {best['walk_forward_roi']:+.1f}% vs "
+                      f"DCA {best['walk_forward_baseline_roi']:+.1f}%; "
+                      f"test ROI {best['test_roi']:+.1f}%)")
             else:
                 print(f"{ticker} {latest_day} -> no match ({best['label']})")
         else:

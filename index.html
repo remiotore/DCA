@@ -57,13 +57,14 @@
   }
   .settings-grid select, .settings-grid input[type="number"],
   .asset-settings select, .asset-settings input[type="text"],
-  .asset-settings input[type="number"] {
+  .asset-settings input[type="number"], #indicator {
     width: 100%; padding: 8px 10px; background: var(--panel-2);
     border: 1px solid var(--border); border-radius: var(--radius);
     color: var(--text); font-size: 14px; outline: none; font-family: inherit;
   }
   .settings-grid select:focus, .settings-grid input:focus,
-  .asset-settings select:focus, .asset-settings input:focus { border-color: var(--accent); }
+  .asset-settings select:focus, .asset-settings input:focus,
+  #indicator:focus { border-color: var(--accent); }
   .settings-grid input[type="range"], .asset-settings input[type="range"] {
     width: 100%; accent-color: var(--accent); margin-top: 4px;
   }
@@ -238,7 +239,7 @@
     <div class="dashboard-layout">
       <aside class="options-panel" aria-label="Analysis options">
         <section class="settings-card" aria-label="Shared analysis settings">
-          <h2>Shared settings</h2>
+          <h2>Settings</h2>
           <div class="settings-grid">
             <div>
               <label for="daily-amount">Contribution per available data day ($)</label>
@@ -283,29 +284,13 @@
             </div>
           </section>
 
-          <details class="settings-card settings-disclosure">
-            <summary>DCA (optional)</summary>
-            <div class="asset-settings">
-              <section>
-                <h2>🎛️ DCA Strategy</h2>
-                <label for="indicator">Indicator</label>
-                <select id="indicator"></select>
-                <div id="indicator-params"></div>
-                <p id="indicator-hint" class="hint"></p>
-              </section>
-              <section>
-                <h2>🔍 Auto-Optimizer</h2>
-                <p class="hint" style="margin-top:0">
-                  Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.
-                </p>
-                <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
-                <input id="split" type="range" min="50" max="85" step="5" value="70">
-                <div style="margin-top:14px">
-                  <button id="run-opt" type="button">🚀 Find best config</button>
-                </div>
-              </section>
-            </div>
-          </details>
+          <section class="settings-card">
+            <h2>🎛️ DCA Strategy</h2>
+            <label for="indicator">Indicator</label>
+            <select id="indicator"></select>
+            <div id="indicator-params"></div>
+            <p id="indicator-hint" class="hint"></p>
+          </section>
         </div>
 
         <p class="hint general-options-note" id="general-options" aria-live="polite">
@@ -322,6 +307,22 @@
           <button id="asset-tab" class="analysis-tab" type="button" role="tab"
             aria-selected="false" aria-controls="asset-panel">📊 Asset Analysis</button>
         </nav>
+        <section class="block" id="auto-trade-section">
+          <h2>🧭 Auto-Trade Analysis</h2>
+          <p class="hint">Finds possible dip candidates from recent price data. It only ranks categories or assets; it never places orders.</p>
+          <button id="run-auto-trade" type="button">🔎 Find candidates</button>
+          <div id="auto-trade-results" aria-live="polite"></div>
+        </section>
+        <section class="block hidden" id="auto-optimize-section">
+          <h2>🔍 Auto-Optimizer</h2>
+          <p class="hint">Compares dip-buying rules with plain DCA using rolling historical tests. Skipped contributions stay as cash; no rule is applied automatically.</p>
+          <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
+          <input id="split" type="range" min="50" max="85" step="5" value="70">
+          <div style="margin-top:14px">
+            <button id="run-opt" type="button">🚀 Find DCA Config</button>
+          </div>
+          <div id="opt-results" aria-live="polite"></div>
+        </section>
         <div id="general-panel" role="tabpanel" aria-labelledby="general-tab">
     <section class="block" id="general-section">
       <h2>🌍 General Analysis <span class="hint" id="general-window"></span></h2>
@@ -423,11 +424,6 @@
       <p class="hint" id="asset-anomalies"></p>
     </section>
 
-    <section class="block hidden" id="opt-section">
-      <h2>🔍 Auto-Optimizer Results</h2>
-      <div id="opt-results"></div>
-    </section>
-
     <section class="block">
       <details>
         <summary>📄 View daily purchase log</summary>
@@ -444,7 +440,7 @@
       Fear &amp; Greed: alternative.me snapshot (crypto only).
       Train/test split is chronological (no shuffling) — the test set is the <em>future</em>
       relative to the train set, which is the correct way to validate a time-series strategy.
-      Fees/slippage ignored. Past performance ≠ future results.
+      The optimizer assumes 0.1% buy costs and fills at the next close after a signal; other simulations ignore fees. Past performance ≠ future results.
       <br>
       No network requests are required; pair data is loaded from local files on demand.
     </footer>
@@ -457,7 +453,23 @@ const TRANSLATIONS_ES = {
   "Select language": "Seleccionar idioma",
   "Analysis options": "Opciones de análisis",
   "General analysis has no tab-specific options.": "El análisis general no tiene opciones específicas.",
-  "Shared settings": "Configuración general",
+  "🧭 Auto-Trade Analysis": "🧭 Análisis Auto-Trade",
+  "Finds possible dip candidates from recent price data. It only ranks categories or assets; it never places orders.": "Busca posibles candidatos en caídas recientes. Solo ordena categorías o activos; nunca envía órdenes.",
+  "🔎 Find candidates": "🔎 Buscar candidatos",
+  "Searching current analysis data…": "Buscando en los datos del análisis…",
+  "Auto-Trade analysis failed: ": "Error en el análisis Auto-Trade: ",
+  "Potential categories — no orders placed": "Categorías candidatas — no se envían órdenes",
+  "Potential assets in ": "Activos candidatos en ",
+  "No candidates meet the dip-and-trend criteria in this window.": "Ningún candidato cumple los criterios de caída y tendencia en este período.",
+  "Candidate": "Candidato",
+  "Dip score": "Puntuación de caída",
+  "1-month return": "Rentabilidad 1 mes",
+  "6-month return": "Rentabilidad 6 meses",
+  "Eligible assets": "Activos que cumplen",
+  "Data warnings": "Avisos de datos",
+  "Rule: negative 1-month return, positive 6-month return, at least 126 data days. Score = -1-month return + 0.25 × 6-month return - 0.05 × annualized volatility.": "Regla: rentabilidad negativa a 1 mes, positiva a 6 meses y al menos 126 días de datos. Puntuación = -rentabilidad a 1 mes + 0,25 × rentabilidad a 6 meses - 0,05 × volatilidad anualizada.",
+  "These are technical pullback candidates, not a measure of fundamental value or a forecast. Check the asset, portfolio fit, costs, and risk before deciding.": "Son candidatos técnicos tras una caída, no una valoración fundamental ni una previsión. Revisa el activo, la cartera, los costes y el riesgo antes de decidir.",
+  "Settings": "Configuración",
   "Shared analysis settings": "Configuración general del análisis",
   "Contribution per available data day ($)": "Aporte por día con datos disponibles ($)",
   "The contribution and look-back settings apply across all views. General and Category use plain DCA; Asset can optionally apply an entry filter.": "El aporte y el período se aplican a todas las vistas. General y Categoría usan DCA simple; en Activo puedes aplicar un filtro de compra.",
@@ -489,7 +501,7 @@ const TRANSLATIONS_ES = {
   "Category analysis settings": "Configuración del análisis por categoría",
   "Category": "Categoría",
   "Indicator (visualization only)": "Indicador (solo visualización)",
-  "DCA (optional)": "DCA (opcional)",
+  "🎛️ DCA Strategy": "🎛️ Estrategia DCA",
   "No indicator": "Sin indicador",
   "No indicator selected.": "No hay ningún indicador seleccionado.",
   "Visualization only; this does not change DCA purchases or run optimization.": "Solo visualización; no cambia las compras DCA ni ejecuta optimización.",
@@ -513,9 +525,11 @@ const TRANSLATIONS_ES = {
   "🎛️ DCA Strategy": "🎛️ Estrategia DCA",
   "Indicator": "Indicador",
   "🔍 Auto-Optimizer": "🔍 Optimizador automático",
-  "Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.": "Compara configuraciones de indicadores con una estrategia DCA simple, usando una división cronológica entre entrenamiento y prueba.",
+  "Compares dip-buying rules with plain DCA. It uses rolling historical tests and keeps skipped contributions as cash.": "Compara reglas de compra en caídas con DCA simple. Usa pruebas históricas móviles y conserva como efectivo los aportes no invertidos.",
+  "Compares dip-buying rules with plain DCA using rolling historical tests. Skipped contributions stay as cash; no rule is applied automatically.": "Compara reglas de compra en caídas con DCA simple mediante pruebas históricas móviles. Los aportes no invertidos permanecen en efectivo; ninguna regla se aplica automáticamente.",
   "Train split (%)": "Porcentaje de entrenamiento (%)",
   "🚀 Find best config": "🚀 Buscar la mejor configuración",
+  "🚀 Find DCA Config": "🚀 Buscar configuración DCA",
   "Monthly price return": "Rentabilidad mensual del precio",
   "DCA seasonality (median by calendar month)": "Estacionalidad DCA (mediana por mes)",
   "🔍 Auto-Optimizer Results": "🔍 Resultados del optimizador",
@@ -528,7 +542,7 @@ const TRANSLATIONS_ES = {
   "Train/test split is chronological (no shuffling) — the test set is the": "La división entre entrenamiento y prueba es cronológica (sin mezclar datos): el conjunto de prueba es el",
   "future": "futuro",
   "relative to the train set, which is the correct way to validate a time-series strategy.": " respecto al conjunto de entrenamiento; así se valida correctamente una estrategia de series temporales.",
-  "Fees/slippage ignored. Past performance ≠ future results.": "No se incluyen comisiones ni deslizamiento. Los resultados pasados no garantizan resultados futuros.",
+  "The optimizer assumes 0.1% buy costs and fills at the next close after a signal; other simulations ignore fees. Past performance ≠ future results.": "El optimizador supone un coste de compra del 0,1 % y ejecuta al cierre siguiente a la señal; las demás simulaciones ignoran comisiones. Los resultados pasados no garantizan resultados futuros.",
   "No network requests are required; pair data is loaded from local files on demand.": "No se necesitan solicitudes de red; los datos de cada activo se cargan desde archivos locales cuando hacen falta.",
   "── Crypto ──": "── Criptomonedas ──",
   "── Technology ──": "── Tecnología ──",
@@ -695,8 +709,19 @@ const TRANSLATIONS_ES = {
   "Test ROI": "Rentabilidad de prueba",
   " vs baseline": " frente al valor base",
   "Buy Frequency": "Frecuencia de compra",
+  "Walk-forward (": "Pruebas móviles (",
+  " rolling tests)": " ventanas de prueba)",
+  "% vs DCA": "% frente a DCA",
+  "Too little history for at least three walk-forward tests. Do not treat the result as evidence of robustness.": "Hay muy poco historial para realizar al menos tres pruebas móviles. No tomes el resultado como evidencia de robustez.",
+  "The walk-forward strategy did not outperform plain DCA across its rolling test windows.": "La estrategia no superó a DCA simple en las ventanas móviles de prueba.",
+  "Historical walk-forward results are not a forecast. The selected rule is not automatically applied to the purchase controls.": "Los resultados históricos móviles no son una previsión. La regla elegida no se aplica automáticamente a los controles de compra.",
   "Best config:": "Mejor configuración:",
-  " — applied to the controls above.": " — aplicada a los controles.",
+  " — candidate only; not applied automatically.": " — solo candidata; no se aplica automáticamente.",
+  "Latest close: ": "Último cierre: ",
+  "rule matches": "la regla se cumple",
+  "no rule match": "la regla no se cumple",
+  "; simulated entry would be at the next close. Not a buy recommendation.": "; la entrada simulada sería al cierre siguiente. No es una recomendación de compra.",
+  "Insufficient history": "Historial insuficiente",
   "Chosen on train set (": "Elegida con el conjunto de entrenamiento (",
   "% of data). ": "% de los datos). ",
   "Baseline (buy every day) → train ": "Valor base (comprar cada día) → entrenamiento ",
@@ -713,6 +738,7 @@ const TRANSLATIONS_ES = {
   "A strategy that looks great on ": "Una estrategia que parece excelente en ",
   " but collapses on ": " pero empeora mucho en ",
   "is likely curve-fitted. Prefer configs whose test ROI stays positive and roughly in line with train ROI.": "probablemente está sobreajustada. Prefiere configuraciones cuya rentabilidad de prueba sea positiva y similar a la de entrenamiento.",
+  "A strategy that looks great on train but collapses on test is likely curve-fitted. Walk-forward ROI is cumulative over the rolling test-window contributions, not annualized. Skipped contributions stay as cash; simulations assume a 0.1% buy cost and purchases at the next close after a signal. Actual fees, taxes, spreads, cash yields, and execution prices vary. Past results do not guarantee future returns.": "Una estrategia que parece excelente en entrenamiento pero cae en prueba probablemente está sobreajustada. El ROI walk-forward acumula los aportes de las ventanas móviles de prueba y no está anualizado. Los aportes no invertidos permanecen en efectivo; la simulación supone un coste de compra del 0,1 % y compras al cierre siguiente a la señal. Las comisiones, impuestos, diferenciales, rendimientos del efectivo y precios reales pueden variar. Los resultados pasados no garantizan resultados futuros.",
   "Optimizer failed: ": "Error del optimizador: ",
   "General analysis failed: ": "Error en el análisis general: ",
   "Chart unavailable: ": "Gráfico no disponible: ",
@@ -747,13 +773,8 @@ function translateString(text) {
 function translateTextNode(node) {
   if (!originalTextNodes.has(node)) originalTextNodes.set(node, node.nodeValue);
   const original = originalTextNodes.get(node);
-  const content = original.trim();
-  if (!content) return;
-  const start = original.indexOf(content);
-  const leading = original.slice(0, start);
-  const trailing = original.slice(start + content.length);
-  const normalized = content.replace(/\s+/g, " ");
-  const translated = leading + translateString(normalized) + trailing;
+  const normalized = original.replace(/\s+/g, " ");
+  const translated = translateString(normalized);
   if (node.nodeValue !== translated) node.nodeValue = translated;
 }
 
@@ -785,6 +806,7 @@ function setLanguage(nextLanguage) {
   document.documentElement.lang = language;
   document.title = language === "es" ? "Panel de inversión periódica (DCA)" : "Daily DCA Dashboard";
   translateSubtree(document.body);
+  document.getElementById("auto-trade-results").innerHTML = "";
   if (generalAnalysisData) {
     const activeTab = document.querySelector(".analysis-tab[aria-selected='true']");
     if (activeTab.id === "general-tab") renderGeneralCharts(generalAnalysisData);
@@ -1583,7 +1605,9 @@ function roiColor(x) {
 let generalAnalysisToken = 0;
 let generalAnalysisLoaded = false;
 let generalAnalysisData = null;
+let generalAnalysisDataDaysBack = null;
 let categoryRenderToken = 0;
+let categoryAnalysisData = null;
 let categoryIndicator = "none";
 let categoryIndicatorPeriod = 14;
 
@@ -2113,6 +2137,153 @@ function renderCategoryDetails(results, fng, fngError) {
     : '<p class="hint">No anomalies detected in this category.</p>';
 }
 
+function getDipCandidate(row) {
+  if (!Number.isFinite(row.ret1m) || !Number.isFinite(row.ret6m) ||
+      !Number.isFinite(row.vol) || row.days < 126 ||
+      row.anomalies?.includes("non-positive price")) return null;
+  if (row.ret1m >= 0 || row.ret6m <= 0) return null;
+  return {
+    score: -row.ret1m + 0.25 * row.ret6m - 0.05 * row.vol,
+    ret1m: row.ret1m,
+    ret6m: row.ret6m,
+    vol: row.vol,
+    warnings: row.anomalies?.length || 0
+  };
+}
+
+function renderAutoTradeResults(candidates, mode, categoryName) {
+  const target = document.getElementById("auto-trade-results");
+  if (!candidates.length) {
+    target.innerHTML = '<div class="warning">' +
+      translateString("No candidates meet the dip-and-trend criteria in this window.") +
+      "</div>";
+    return;
+  }
+  const isGeneral = mode === "general";
+  const title = isGeneral
+    ? translateString("Potential categories — no orders placed")
+    : translateString("Potential assets in ") + htmlEscape(categoryName);
+  const rows = candidates.map((candidate, index) =>
+    "<tr><td>" + (index + 1) + "</td>" +
+    "<td>" + htmlEscape(candidate.name) +
+      (candidate.ticker ? " (" + htmlEscape(candidate.ticker) + ")" : "") + "</td>" +
+    "<td>" + candidate.score.toFixed(2) + "</td>" +
+    "<td>" + roiText(candidate.ret1m) + "</td>" +
+    "<td>" + roiText(candidate.ret6m) + "</td>" +
+    "<td>" + fmt(candidate.vol, 1) + "%</td>" +
+    (isGeneral
+      ? "<td>" + candidate.eligible + " / " + candidate.total + "</td>"
+      : "<td>" + candidate.warnings + "</td>") +
+    "</tr>"
+  ).join("");
+
+  target.innerHTML =
+    "<h3>" + title + "</h3>" +
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+    "<th>" + translateString("Rank") + "</th>" +
+    "<th>" + translateString("Candidate") + "</th>" +
+    "<th>" + translateString("Dip score") + "</th>" +
+    "<th>" + translateString("1-month return") + "</th>" +
+    "<th>" + translateString("6-month return") + "</th>" +
+    "<th>" + translateString("Volatility") + "</th>" +
+    "<th>" + translateString(isGeneral ? "Eligible assets" : "Data warnings") + "</th>" +
+    "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
+    '<p class="hint">' +
+    translateString("Rule: negative 1-month return, positive 6-month return, at least 126 data days. Score = -1-month return + 0.25 × 6-month return - 0.05 × annualized volatility.") +
+    "</p><p class=\"hint\">" +
+      translateString("These are technical pullback candidates, not a measure of fundamental value or a forecast. Check the asset, portfolio fit, costs, and risk before deciding.") +
+    "</p>";
+}
+
+async function runAutoTrade() {
+  const button = document.getElementById("run-auto-trade");
+  const target = document.getElementById("auto-trade-results");
+  const isGeneral = document.getElementById("general-tab").getAttribute("aria-selected") === "true";
+  button.disabled = true;
+  target.innerHTML = '<p class="hint">' + translateString("Searching current analysis data…") + "</p>";
+
+  try {
+    if (isGeneral) {
+      if (!generalAnalysisData || generalAnalysisDataDaysBack !== state.daysBack) {
+        generalAnalysisData = await analyzeAllAssets(state.daysBack, state.dailyAmount, () => {});
+        generalAnalysisDataDaysBack = state.daysBack;
+      }
+      const byCategory = new Map();
+      generalAnalysisData.rows.forEach(asset => {
+        if (!byCategory.has(asset.category)) byCategory.set(asset.category, []);
+        byCategory.get(asset.category).push(asset);
+      });
+      const candidates = generalAnalysisData.categories.map(category => {
+        const stats = {
+          ret1m: category.momentum.m1,
+          ret6m: category.momentum.m6,
+          vol: category.medianVol,
+          days: 126
+        };
+        const dip = getDipCandidate(stats);
+        const assets = byCategory.get(category.name) || [];
+        const eligible = assets.filter(asset => getDipCandidate(asset)).length;
+        if (!dip || eligible === 0) return null;
+        return {
+          name: category.name.replace(/^── | ──$/g, ""),
+          score: dip.score,
+          ret1m: dip.ret1m,
+          ret6m: dip.ret6m,
+          vol: dip.vol,
+          eligible,
+          total: assets.length
+        };
+      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 5);
+      renderAutoTradeResults(candidates, "general");
+      return;
+    }
+
+    const category = document.getElementById("category-view").value;
+    if (!categoryAnalysisData || categoryAnalysisData.category !== category ||
+        categoryAnalysisData.daysBack !== state.daysBack) {
+      const tickers = Object.values(ASSET_CATALOGUE[category] || {});
+      const results = await Promise.all(tickers.map(async ticker => {
+        try {
+          return { ticker, data: await getData(ticker, state.daysBack) };
+        } catch (error) {
+          return { ticker, data: null, error };
+        }
+      }));
+      categoryAnalysisData = { category, daysBack: state.daysBack, results };
+    }
+
+    const candidates = categoryAnalysisData.results.map(result => {
+      if (!result.data || result.data.close.length < 2) return null;
+      const mdd = maxDrawdown(result.data.close) * 100;
+      const row = {
+        ...assetStats(result.data),
+        days: result.data.close.length,
+        anomalies: detectAnomalies(result.data, mdd)
+      };
+      const dip = getDipCandidate(row);
+      if (!dip) return null;
+      const name = Object.entries(ALL_ASSETS).find(([, ticker]) =>
+        ticker === result.ticker)?.[0] || result.ticker;
+      return {
+        name: name.replace(/\s+\([^)]*\)$/, ""),
+        ticker: result.ticker,
+        ...dip
+      };
+    }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 5);
+    renderAutoTradeResults(
+      candidates,
+      "category",
+      category.replace(/^── | ──$/g, "")
+    );
+  } catch (error) {
+    target.innerHTML = '<div class="warning">' +
+      translateString("Auto-Trade analysis failed: ") + htmlEscape(error.message) +
+      "</div>";
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function renderCategoryAnalysis() {
   const token = ++categoryRenderToken;
   const category = document.getElementById("category-view").value;
@@ -2150,6 +2321,7 @@ async function renderCategoryAnalysis() {
   status.textContent = "· " + category.replace(/^── | ──$/g, "") +
     " · " + results.filter(r => r.data).length + " assets · " + state.daysBack + "-day window";
 
+  categoryAnalysisData = { category, daysBack: state.daysBack, results };
   renderCategoryDetails(results, fng, fngError);
 }
 
@@ -2172,6 +2344,7 @@ async function renderGeneralAnalysis() {
     });
     if (token !== generalAnalysisToken) return;
     generalAnalysisData = a;
+    generalAnalysisDataDaysBack = state.daysBack;
     if (document.getElementById("general-tab").getAttribute("aria-selected") === "true") {
       renderGeneralCharts(a);
     }
@@ -2310,24 +2483,42 @@ function sliceData(data, start, end) {
 }
 
 function evalSegment(data, dailyAmount, signal, start, end) {
-  if (end <= start) return { roi: 0, buys: 0 };
-  const seg = sliceData(data, start, end);
-  const sim = simulateDCA(seg, dailyAmount, signal.slice(start, end));
-  const last = end - start - 1;
+  if (end <= start) return { roi: 0, buys: 0, profit: 0, invested: 0 };
+  const feeRate = 0.001;
+  const finalPrice = data.close[end - 1];
+  let cash = 0, shares = 0, buys = 0, wins = 0;
+  const invested = (end - start) * dailyAmount;
+  for (let i = start; i < end; i++) {
+    cash += dailyAmount;
+    if (signal[i] && cash > 0 && data.close[i] > 0) {
+      const basis = data.close[i] / (1 - feeRate);
+      shares += cash / basis;
+      wins += finalPrice > basis ? 1 : 0;
+      cash = 0;
+      buys++;
+    }
+  }
+  const value = shares * finalPrice + cash;
+  const profit = value - invested;
   return {
-    roi: sim.totalInvested[last] > 0 ? sim.roiPct[last] : 0,
-    buys: sim.buyCount[last]
+    roi: invested > 0 ? (profit / invested) * 100 : 0,
+    buys,
+    profit,
+    invested,
+    hit_rate: buys ? wins / buys : 0
   };
 }
 
 function evaluateConfig(data, dailyAmount, signal, splitRatio) {
   const n = data.close.length;
   const split = Math.floor(n * splitRatio);
-  const tr = evalSegment(data, dailyAmount, signal, 0, split);
-  const te = evalSegment(data, dailyAmount, signal, split, n);
+  const executionSignal = signal.map((value, i) => i > 0 && signal[i - 1]);
+  const tr = evalSegment(data, dailyAmount, executionSignal, 0, split);
+  const te = evalSegment(data, dailyAmount, executionSignal, split, n);
   return {
     train_roi: tr.roi, test_roi: te.roi,
     train_buy_days: tr.buys, test_buy_days: te.buys,
+    train_hit_rate: tr.hit_rate, test_hit_rate: te.hit_rate,
     train_days: split, test_days: n - split
   };
 }
@@ -2345,14 +2536,14 @@ function gridSearchAll(data, dailyAmount, fng, splitRatio, crypto) {
   const rows = [];
   const allTrue = new Array(data.close.length).fill(true);
   const base = evaluateConfig(data, dailyAmount, allTrue, splitRatio);
-  rows.push({ indicator: "none", params: {}, label: "No restriction", ...base });
+  rows.push({ indicator: "none", params: {}, label: "No restriction", signal: allTrue, ...base });
 
   ["RSI", "CCI", "MFI", "Fear & Greed"].forEach(ind => {
     if (ind === "Fear & Greed" && (!crypto || !fng || fng.size === 0)) return;
     GRIDS[ind].forEach(params => {
       const { signal } = computeSignal(data, ind, params, fng);
       const ev = evaluateConfig(data, dailyAmount, signal, splitRatio);
-      rows.push({ indicator: ind, params, label: fmtParams(ind, params), ...ev });
+      rows.push({ indicator: ind, params, label: fmtParams(ind, params), signal, ...ev });
     });
   });
 
@@ -2361,6 +2552,47 @@ function gridSearchAll(data, dailyAmount, fng, splitRatio, crypto) {
     r.test_buy_pct  = r.test_days  > 0 ? +(r.test_buy_days  / r.test_days  * 100).toFixed(1) : 0;
   });
   return rows;
+}
+
+function walkForwardValidate(data, rows, dailyAmount) {
+  const n = data.close.length;
+  const fractions = [0.5, 0.6, 0.7, 0.8, 0.9, 1];
+  let strategyProfit = 0, strategyInvested = 0;
+  let baselineProfit = 0, baselineInvested = 0;
+  let folds = 0;
+
+  for (let i = 0; i < fractions.length - 1; i++) {
+    const trainEnd = Math.floor(n * fractions[i]);
+    const testEnd = Math.floor(n * fractions[i + 1]);
+    if (trainEnd < 60 || testEnd - trainEnd < 10) continue;
+
+    const trainCandidates = rows.map(row => {
+      const executionSignal = row.signal.map((value, j) => j > 0 && row.signal[j - 1]);
+      const train = evalSegment(data, dailyAmount, executionSignal, 0, trainEnd);
+      const trainPct = trainEnd ? (train.buys / trainEnd) * 100 : 0;
+      return { row, train, trainPct };
+    }).filter(candidate => candidate.row.indicator === "none" || candidate.trainPct >= 2.0);
+    trainCandidates.sort((a, b) => b.train.roi - a.train.roi);
+    const selected = trainCandidates[0];
+    if (!selected) continue;
+
+    const strategySignal = selected.row.signal.map((value, j) => j > 0 && selected.row.signal[j - 1]);
+    const baseline = rows.find(row => row.indicator === "none");
+    const baselineSignal = baseline.signal.map((value, j) => j > 0 && baseline.signal[j - 1]);
+    const test = evalSegment(data, dailyAmount, strategySignal, trainEnd, testEnd);
+    const baseTest = evalSegment(data, dailyAmount, baselineSignal, trainEnd, testEnd);
+    strategyProfit += test.profit;
+    strategyInvested += test.invested;
+    baselineProfit += baseTest.profit;
+    baselineInvested += baseTest.invested;
+    folds++;
+  }
+
+  return {
+    folds,
+    roi: strategyInvested ? strategyProfit / strategyInvested * 100 : 0,
+    baselineRoi: baselineInvested ? baselineProfit / baselineInvested * 100 : 0
+  };
 }
 
 /* =========================================================================
@@ -2822,13 +3054,6 @@ function updateIndicatorParams(override) {
   updateHint();
 }
 
-function applyBestConfig(best) {
-  state.indicator = best.indicator;
-  updateIndicatorOptions();
-  updateIndicatorParams(best.params);
-  render();
-}
-
 async function onTickerChange() {
   state.ticker = getEffectiveTicker();
   updateIndicatorOptions();
@@ -2841,9 +3066,7 @@ async function onTickerChange() {
    ========================================================================= */
 async function runOptimizer() {
   const btn = document.getElementById("run-opt");
-  const section = document.getElementById("opt-section");
   const out = document.getElementById("opt-results");
-  section.classList.remove("hidden");
   btn.disabled = true;
   out.innerHTML = '<p class="hint"><span class="spinner"></span>Running grid search with train/test split…</p>';
 
@@ -2852,17 +3075,20 @@ async function runOptimizer() {
     const crypto = isCrypto(state.ticker);
     const fng = crypto ? await loadFearGreed() : null;
     const rows = gridSearchAll(data, state.dailyAmount, fng, state.splitPct / 100, crypto);
+    const walkForward = walkForwardValidate(data, rows, state.dailyAmount);
 
     const baseline = rows.find(r => r.indicator === "none");
     const active = rows.filter(r => r.train_buy_pct >= 2.0);
     const pool = active.length ? active : rows;
     const best = pool.slice().sort((a, b) => b.train_roi - a.train_roi)[0];
-
-    applyBestConfig(best);
+    const currentSignal = best.signal[best.signal.length - 1];
 
     const diff = best.test_roi - baseline.test_roi;
     const sign = diff >= 0 ? "+" : "";
     const diffColor = diff >= 0 ? "var(--accent)" : "var(--danger)";
+    const walkForwardDiff = walkForward.roi - walkForward.baselineRoi;
+    const walkForwardSign = walkForwardDiff >= 0 ? "+" : "";
+    const walkForwardColor = walkForwardDiff >= 0 ? "var(--accent)" : "var(--danger)";
 
     const top20 = rows.slice()
       .sort((a, b) => b.train_roi - a.train_roi)
@@ -2889,23 +3115,37 @@ async function runOptimizer() {
         '<div class="metric"><div class="label">Buy Frequency</div>' +
           '<div class="value" style="font-size:18px">' + best.train_buy_pct.toFixed(1) + '% / ' + best.test_buy_pct.toFixed(1) + '%</div></div>' +
       '</div>' +
-      '<div class="success"><strong>Best config:</strong> <code>' + best.label + '</code> — applied to the controls above.<br>' +
+      '<div class="success"><strong>Best config:</strong> <code>' + best.label + '</code> — candidate only; not applied automatically.<br>' +
         'Chosen on train set (' + state.splitPct + '% of data). ' +
         'Baseline (buy every day) → train <strong>' + baseline.train_roi.toFixed(2) + '%</strong>, ' +
-        'test <strong>' + baseline.test_roi.toFixed(2) + '%</strong>.</div>' +
+        'test <strong>' + baseline.test_roi.toFixed(2) + '%</strong>.<br>' +
+        'Latest close: <strong>' + (currentSignal ? 'rule matches' : 'no rule match') +
+        '</strong>; simulated entry would be at the next close. Not a buy recommendation.</div>' +
+      '<div class="metrics"><div class="metric"><div class="label">Walk-forward (' + walkForward.folds + ' rolling tests)</div>' +
+        '<div class="value">' + (walkForward.folds ? walkForward.roi.toFixed(2) + '%' : '—') + '</div>' +
+        '<div class="delta" style="color:' + walkForwardColor + '">' +
+          (walkForward.folds
+            ? walkForwardSign + walkForwardDiff.toFixed(2) + '% vs DCA'
+            : 'Insufficient history') + '</div></div></div>' +
       (best.test_roi < baseline.test_roi
         ? '<div class="warning">⚠️ The "best" config <strong>underperformed the baseline on the test set</strong>. ' +
           'This is classic overfitting — treat this indicator rule with caution.</div>'
         : '') +
+      (walkForward.folds < 3
+        ? '<div class="warning">Too little history for at least three walk-forward tests. Do not treat the result as evidence of robustness.</div>'
+        : walkForwardDiff <= 0
+          ? '<div class="warning">The walk-forward strategy did not outperform plain DCA across its rolling test windows.</div>'
+          : '<div class="warning">Historical walk-forward results are not a forecast. The selected rule is not automatically applied to the purchase controls.</div>') +
       '<h3 style="font-size:15px;margin:22px 0 10px">Top 20 configs (sorted by train ROI)</h3>' +
       '<div class="table-scroll"><table class="data-table"><thead><tr>' +
         '<th>Strategy</th><th>Indicator</th><th>Train ROI %</th><th>Test ROI %</th>' +
         '<th>Train Buy %</th><th>Test Buy %</th>' +
       '</tr></thead><tbody>' + trs + '</tbody></table></div>' +
-      '<p class="hint">A strategy that looks great on <em>train</em> but collapses on <em>test</em> ' +
-        'is likely curve-fitted. Prefer configs whose test ROI stays positive and roughly in line with train ROI.</p>';
+      '<p class="hint">A strategy that looks great on train but collapses on test is likely curve-fitted. Walk-forward ROI is cumulative over the rolling test-window contributions, not annualized. Skipped contributions stay as cash; simulations assume a 0.1% buy cost and purchases at the next close after a signal. Actual fees, taxes, spreads, cash yields, and execution prices vary. Past results do not guarantee future returns.</p>';
+    translateSubtree(out);
   } catch (e) {
     out.innerHTML = '<div class="warning">Optimizer failed: ' + e.message + '</div>';
+    translateSubtree(out);
   } finally {
     btn.disabled = false;
   }
@@ -2926,6 +3166,9 @@ function selectAnalysisTab(view) {
   document.getElementById("category-options").classList.toggle("hidden", view !== "category");
   document.getElementById("asset-options").classList.toggle("hidden", view !== "asset");
   document.getElementById("general-options").classList.toggle("hidden", view !== "general");
+  document.getElementById("auto-trade-section").classList.toggle("hidden", view === "asset");
+  document.getElementById("auto-optimize-section").classList.toggle("hidden", view !== "asset");
+  document.getElementById("auto-trade-results").innerHTML = "";
   if (view === "asset") {
     render();
   } else if (view === "category") {
@@ -2979,6 +3222,10 @@ async function init() {
     if (v > 1000) v = 1000;
     state.dailyAmount = v;
     e.target.value = v;
+    generalAnalysisData = null;
+    generalAnalysisDataDaysBack = null;
+    categoryAnalysisData = null;
+    document.getElementById("auto-trade-results").innerHTML = "";
     if (generalAnalysisLoaded) renderGeneralAnalysis();
     refreshCategoryIfActive();
     render();
@@ -2989,8 +3236,12 @@ async function init() {
   daysSlider.addEventListener("input", () => {
     daysVal.textContent = daysSlider.value;
     state.daysBack = Number(daysSlider.value);
+    document.getElementById("auto-trade-results").innerHTML = "";
   });
   daysSlider.addEventListener("change", () => {
+    generalAnalysisData = null;
+    generalAnalysisDataDaysBack = null;
+    categoryAnalysisData = null;
     if (generalAnalysisLoaded) renderGeneralAnalysis();
     refreshCategoryIfActive();
     render();
@@ -3010,6 +3261,7 @@ async function init() {
   });
 
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
+  document.getElementById("run-auto-trade").addEventListener("click", runAutoTrade);
   document.getElementById("language").addEventListener("change", event => {
     setLanguage(event.target.value);
   });
@@ -3017,6 +3269,8 @@ async function init() {
     document.getElementById(name + "-tab").addEventListener("click", () => selectAnalysisTab(name));
   });
   document.getElementById("category-view").addEventListener("change", () => {
+    categoryAnalysisData = null;
+    document.getElementById("auto-trade-results").innerHTML = "";
     updateCategoryIndicatorOptions();
     renderCategoryAnalysis();
   });
