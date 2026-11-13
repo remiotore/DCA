@@ -30,7 +30,6 @@
   .app-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header h1 { margin: 0 0 18px; }
   .language-control { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
-  .language-control label { color: var(--muted); font-size: 13px; }
   .language-control select {
     padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text); font: inherit;
@@ -217,10 +216,9 @@
     <header class="app-header">
       <h1>📈 Daily DCA Dashboard</h1>
       <div class="language-control">
-        <label for="language">Language</label>
-        <select id="language" aria-label="Language">
-          <option value="en">English</option>
-          <option value="es">Español</option>
+        <select id="language" aria-label="Select language">
+          <option value="en" title="English">🇺🇸</option>
+          <option value="es" title="Español">🇪🇸</option>
         </select>
       </div>
     </header>
@@ -451,7 +449,7 @@
 <script>
 const TRANSLATIONS_ES = {
   "Daily DCA Dashboard": "Panel de inversión periódica (DCA)",
-  "Language": "Idioma",
+  "Select language": "Seleccionar idioma",
   "Shared settings": "Configuración general",
   "Shared analysis settings": "Configuración general del análisis",
   "Contribution per available data day ($)": "Aporte por día con datos disponibles ($)",
