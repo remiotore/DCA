@@ -36,31 +36,31 @@
     margin: 0 0 12px; color: var(--accent); font-weight: 700;
   }
   .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
-  .settings-grid label, .specific-settings label {
+  .settings-grid label, .asset-settings label {
     display: block; font-size: 13px; color: var(--muted); margin: 0 0 5px;
   }
   .settings-grid select, .settings-grid input[type="number"],
-  .specific-settings select, .specific-settings input[type="text"],
-  .specific-settings input[type="number"] {
+  .asset-settings select, .asset-settings input[type="text"],
+  .asset-settings input[type="number"] {
     width: 100%; padding: 8px 10px; background: var(--panel-2);
     border: 1px solid var(--border); border-radius: var(--radius);
     color: var(--text); font-size: 14px; outline: none; font-family: inherit;
   }
   .settings-grid select:focus, .settings-grid input:focus,
-  .specific-settings select:focus, .specific-settings input:focus { border-color: var(--accent); }
-  .settings-grid input[type="range"], .specific-settings input[type="range"] {
+  .asset-settings select:focus, .asset-settings input:focus { border-color: var(--accent); }
+  .settings-grid input[type="range"], .asset-settings input[type="range"] {
     width: 100%; accent-color: var(--accent); margin-top: 4px;
   }
-  .specific-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .specific-settings > section { margin: 0; }
-  .specific-settings h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; color: var(--accent); }
-  .specific-settings .asset-selection { grid-column: 1 / -1; }
-  .specific-settings .condition { margin-top: 12px; }
-  .specific-settings .check-row {
+  .asset-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .asset-settings > section { margin: 0; }
+  .asset-settings h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; color: var(--accent); }
+  .asset-settings .asset-selection { grid-column: 1 / -1; }
+  .asset-settings .condition { margin-top: 12px; }
+  .asset-settings .check-row {
     display: flex; align-items: center; gap: 8px;
     font-size: 13px; color: var(--text); margin: 0 0 2px; cursor: pointer;
   }
-  .specific-settings .check-row input { width: auto; margin: 0; accent-color: var(--accent); }
+  .asset-settings .check-row input { width: auto; margin: 0; accent-color: var(--accent); }
   .range-val { color: var(--text); font-weight: 600; float: right; font-size: 13px; }
   button {
     background: var(--accent); color: #0e1117; border: none; padding: 11px 14px;
@@ -99,6 +99,7 @@
     border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 12px 8px;
   }
   .general-chart-card h4 { margin: 0 0 4px; font-size: 14px; }
+  .general-chart-card.wide { grid-column: 1 / -1; }
   .general-chart { width: 100%; min-width: 0; }
   .metric {
     background: var(--panel); border: 1px solid var(--border);
@@ -166,8 +167,8 @@
     #main h2 { font-size: 18px; }
     #chart { padding: 4px; }
     .metrics { grid-template-columns: 1fr; }
-    .settings-grid, .specific-settings { grid-template-columns: 1fr; }
-    .specific-settings .asset-selection { grid-column: auto; }
+    .settings-grid, .asset-settings { grid-template-columns: 1fr; }
+    .asset-settings .asset-selection { grid-column: auto; }
     .metric .value { font-size: 18px; }
     .data-table { font-size: 12.5px; }
     .data-table th, .data-table td { padding: 7px 9px; }
@@ -197,8 +198,10 @@
     <nav class="analysis-tabs" role="tablist" aria-label="Analysis view">
       <button id="general-tab" class="analysis-tab" type="button" role="tab"
         aria-selected="true" aria-controls="general-panel">🌍 General Analysis</button>
-      <button id="specific-tab" class="analysis-tab" type="button" role="tab"
-        aria-selected="false" aria-controls="specific-panel">📊 Specific Analysis</button>
+      <button id="category-tab" class="analysis-tab" type="button" role="tab"
+        aria-selected="false" aria-controls="category-panel">📁 Category Analysis</button>
+      <button id="asset-tab" class="analysis-tab" type="button" role="tab"
+        aria-selected="false" aria-controls="asset-panel">📊 Asset Analysis</button>
     </nav>
     <div id="general-panel" role="tabpanel" aria-labelledby="general-tab">
     <section class="block" id="general-section">
@@ -234,6 +237,9 @@
       <h3 class="analysis-title">Per-category overview</h3>
       <div id="general-categories"></div>
 
+      <h3 class="analysis-title">Momentum by category (median return)</h3>
+      <div id="general-momentum"></div>
+
       <h3 class="analysis-title">Top 10 most profitable (no strategy)</h3>
       <div id="general-top"></div>
 
@@ -242,8 +248,64 @@
     </section>
     </div>
 
-    <div id="specific-panel" class="hidden" role="tabpanel" aria-labelledby="specific-tab">
-    <section class="settings-card specific-settings" aria-label="Specific analysis settings">
+    <div id="category-panel" class="hidden" role="tabpanel" aria-labelledby="category-tab">
+    <section class="settings-card" aria-label="Category analysis settings">
+      <h2>Category</h2>
+      <div class="settings-grid">
+        <div>
+          <label for="category-view">Category</label>
+          <select id="category-view"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>📁 Category Analysis <span class="hint" id="category-status"></span></h2>
+      <div class="metrics" id="category-summary">
+        <p class="hint">Select a category to see its summary.</p>
+      </div>
+      <div class="general-chart-grid">
+        <section class="general-chart-card">
+          <h4>Winners vs. non-winners</h4>
+          <div class="general-chart" id="category-winners-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>DCA return by asset</h4>
+          <div class="general-chart" id="category-roi-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>Top 10 assets: DCA vs. price return</h4>
+          <div class="general-chart" id="category-top-chart"></div>
+        </section>
+        <section class="general-chart-card">
+          <h4>Return vs. maximum drawdown</h4>
+          <div class="general-chart" id="category-risk-chart"></div>
+        </section>
+        <section class="general-chart-card wide">
+          <h4>Monthly price return by asset</h4>
+          <div class="general-chart" id="category-monthly-chart"></div>
+        </section>
+        <section class="general-chart-card wide">
+          <h4>DCA seasonality by asset (median by calendar month)</h4>
+          <div class="general-chart" id="category-seasonality-chart"></div>
+        </section>
+      </div>
+      <h3 class="analysis-title">Per-asset overview</h3>
+      <div id="category-members"></div>
+
+      <h3 class="analysis-title">Momentum by asset</h3>
+      <div id="category-momentum"></div>
+
+      <h3 class="analysis-title">Top 10 most profitable</h3>
+      <div id="category-top"></div>
+
+      <h3 class="analysis-title">Anomalies</h3>
+      <div id="category-anomalies"></div>
+    </section>
+    </div>
+
+    <div id="asset-panel" class="hidden" role="tabpanel" aria-labelledby="asset-tab">
+    <section class="settings-card asset-settings" aria-label="Asset analysis settings">
       <section class="asset-selection">
         <h2>Asset</h2>
         <div class="settings-grid">
@@ -282,6 +344,17 @@
       <h2 id="asset-title">📊 —</h2>
       <div class="metrics" id="metrics"></div>
       <div id="chart"></div>
+      <div class="general-chart-grid" style="margin-top:22px">
+        <section class="general-chart-card wide">
+          <h4>Monthly price return</h4>
+          <div class="general-chart" id="asset-monthly-chart"></div>
+        </section>
+        <section class="general-chart-card wide">
+          <h4>DCA seasonality (median by calendar month)</h4>
+          <div class="general-chart" id="asset-seasonality-chart"></div>
+        </section>
+      </div>
+      <p class="hint" id="asset-anomalies"></p>
     </section>
 
     <section class="block hidden" id="opt-section">
@@ -624,6 +697,14 @@ function fmt(x, d) {
   if (x === null || x === undefined || Number.isNaN(x)) return "—";
   return Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
+function fmtMoney(x) {
+  if (x === null || x === undefined || !Number.isFinite(x)) return "—";
+  const abs = Math.abs(x);
+  if (abs >= 1e9) return "$" + (x / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return "$" + (x / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return "$" + (x / 1e3).toFixed(1) + "K";
+  return "$" + x.toFixed(0);
+}
 function fmtPrice(x) {
   if (x === null || x === undefined || Number.isNaN(x)) return "—";
   const abs = Math.abs(x);
@@ -884,6 +965,97 @@ function maxDrawdown(closes) {
   return mdd;
 }
 
+function mean(values) {
+  return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+}
+
+function stdev(values) {
+  if (values.length < 2) return 0;
+  const m = mean(values);
+  return Math.sqrt(values.reduce((sum, v) => sum + (v - m) * (v - m), 0) / (values.length - 1));
+}
+
+function medianOrNull(values) {
+  return values.length ? median(values) : null;
+}
+
+function returnOver(closes, tradingDays) {
+  const last = closes.length - 1;
+  if (last < tradingDays) return null;
+  const first = closes[last - tradingDays];
+  return first > 0 ? (closes[last] / first - 1) * 100 : null;
+}
+
+/* Generic per-asset figures: liquidity, volatility, risk-adjusted return
+   and simple momentum. Shared by General, Category and Asset views. */
+function assetStats(data) {
+  const closes = data.close;
+  const rets = [];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i - 1] > 0) rets.push(closes[i] / closes[i - 1] - 1);
+  }
+  const sd = stdev(rets);
+  let dollarVolume = 0, recentVolume = 0, recentDays = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const traded = closes[i] * data.volume[i];
+    if (!Number.isFinite(traded)) continue;
+    dollarVolume += traded;
+    if (i >= closes.length - 30) { recentVolume += traded; recentDays++; }
+  }
+  dollarVolume /= closes.length;
+  const recent = recentDays ? recentVolume / recentDays : dollarVolume;
+  return {
+    liquidity: dollarVolume,
+    liqTrend: dollarVolume > 0 ? recent / dollarVolume : 1,
+    vol: sd * Math.sqrt(252) * 100,
+    sharpe: sd > 0 ? mean(rets) / sd * Math.sqrt(252) : 0,
+    ret1m: returnOver(closes, 21),
+    ret3m: returnOver(closes, 63),
+    ret6m: returnOver(closes, 126),
+    ret12m: returnOver(closes, 252)
+  };
+}
+
+/* Monthly price return and monthly DCA return, keyed "YYYY-MM".
+   DCA return for a month = month-end close / harmonic mean of daily closes - 1. */
+function monthlyReturns(data) {
+  const out = new Map();
+  let key = null, first = 0, last = 0, invSum = 0, count = 0;
+  const flush = () => {
+    if (key === null || count < 5) return;
+    out.set(key, {
+      price: (last / first - 1) * 100,
+      dca: (last / (count / invSum) - 1) * 100
+    });
+  };
+  for (let i = 0; i < data.dates.length; i++) {
+    const c = data.close[i];
+    if (!(c > 0)) continue;
+    const k = data.dates[i].slice(0, 7);
+    if (k !== key) { flush(); key = k; first = c; invSum = 0; count = 0; }
+    last = c;
+    invSum += 1 / c;
+    count++;
+  }
+  flush();
+  return out;
+}
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/* Median DCA return per calendar month from a monthlyReturns() map. */
+function seasonalityFromMonths(months) {
+  const byMonth = new Map();
+  months.forEach((month, key) => {
+    const index = Number(key.slice(5, 7)) - 1;
+    if (!byMonth.has(index)) byMonth.set(index, []);
+    byMonth.get(index).push(month.dca);
+  });
+  return MONTH_LABELS.map((_, i) => byMonth.has(i) ? median(byMonth.get(i)) : null);
+}
+
+/* Daily "is the close above its simple moving average" flags. */
 function detectAnomalies(data, mddPct) {
   const closes = data.close;
   const out = [];
@@ -923,11 +1095,13 @@ async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
         const signal = new Array(data.close.length).fill(true);
         const sim = simulateDCA(data, dailyAmount, signal);
         const mddPct = maxDrawdown(data.close) * 100;
+        const stats = assetStats(data);
         rows[index] = {
           name, ticker, category,
           roi: sim.roiPct[last],
           priceRet: (data.close[last] / data.close[0] - 1) * 100,
           mdd: mddPct,
+          ...stats,
           days: data.close.length,
           lastDate: data.dates[last],
           anomalies: detectAnomalies(data, mddPct)
@@ -935,6 +1109,8 @@ async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
       } catch (error) {
         rows[index] = {
           name, ticker, category, roi: null, priceRet: null, mdd: null,
+          liquidity: null, liqTrend: null, vol: null, sharpe: null,
+          ret1m: null, ret3m: null, ret6m: null, ret12m: null,
           days: 0, lastDate: null, error: error.message,
           anomalies: ["no usable data"]
         };
@@ -953,9 +1129,19 @@ async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
   });
   const categories = Object.entries(byCategory).map(([name, assets]) => {
     const ranked = assets.slice().sort((a, b) => b.roi - a.roi);
+    const horizons = key => medianOrNull(assets.map(r => r[key]).filter(v => v !== null));
     return {
       name, count: assets.length,
       medianRoi: median(assets.map(r => r.roi)),
+      medianLiquidity: median(assets.map(r => r.liquidity)),
+      medianVol: median(assets.map(r => r.vol)),
+      medianSharpe: median(assets.map(r => r.sharpe)),
+      medianLiqTrend: median(assets.map(r => r.liqTrend)),
+      spread: ranked[0].roi - ranked[ranked.length - 1].roi,
+      momentum: {
+        m1: horizons("ret1m"), m3: horizons("ret3m"),
+        m6: horizons("ret6m"), m12: horizons("ret12m")
+      },
       best: ranked[0],
       worst: ranked[ranked.length - 1],
       anomalyCount: assets.filter(r => r.anomalies.length).length
@@ -968,10 +1154,15 @@ async function analyzeAllAssets(daysBack, dailyAmount, onProgress) {
     bottom: sorted.slice(-5).reverse(),
     winners: valid.filter(r => r.roi > 0).length,
     medianRoi: median(valid.map(r => r.roi)),
+    medianLiquidity: median(valid.map(r => r.liquidity)),
     through: valid.reduce((d, r) => r.lastDate > d ? r.lastDate : d, ""),
     anomalies: rows.filter(r => r.anomalies.length)
       .sort((a, b) => b.anomalies.length - a.anomalies.length || a.name.localeCompare(b.name))
   };
+}
+
+function retText(x) {
+  return x === null || x === undefined ? "—" : roiText(x);
 }
 
 function roiText(x) {
@@ -984,6 +1175,7 @@ function roiColor(x) {
 let generalAnalysisToken = 0;
 let generalAnalysisLoaded = false;
 let generalAnalysisData = null;
+let categoryRenderToken = 0;
 
 function renderGeneralPlot(id, traces, layout) {
   const target = document.getElementById(id);
@@ -1117,6 +1309,322 @@ function renderGeneralCharts(analysis) {
   });
 }
 
+function clearPlot(id, message) {
+  const target = document.getElementById(id);
+  if (target.classList.contains("js-plotly-plot")) Plotly.purge(target);
+  target.innerHTML = '<p class="hint">' + htmlEscape(message) + '</p>';
+}
+
+function renderCategorySummary(results, rows, nameByTicker) {
+  const target = document.getElementById("category-summary");
+  if (!rows.length) {
+    target.innerHTML = '<p class="hint">No usable price history for this category.</p>';
+    return;
+  }
+  const medianRoi = median(rows.map(r => r.roi));
+  const medianLiquidity = median(rows.map(r => r.liquidity));
+  const winners = rows.filter(r => r.roi > 0).length;
+  const best = rows[0]; // rows are sorted by DCA ROI, highest first.
+  const flagged = rows.filter(r => r.anomalies.length).length;
+  target.innerHTML =
+    '<div class="metric"><div class="label">Assets Analysed</div>' +
+      '<div class="value">' + rows.length + ' / ' + results.length + '</div></div>' +
+    '<div class="metric"><div class="label">Median DCA ROI (no strategy)</div>' +
+      '<div class="value" style="color:' + roiColor(medianRoi) + '">' + roiText(medianRoi) + '</div></div>' +
+    '<div class="metric"><div class="label">Median daily $ volume</div>' +
+      '<div class="value">' + fmtMoney(medianLiquidity) + '</div>' +
+      '<div class="delta off">liquidity across assets</div></div>' +
+    '<div class="metric"><div class="label">Winners / Losers</div>' +
+      '<div class="value">' + winners + ' / ' + (rows.length - winners) + '</div>' +
+      '<div class="delta off">' + (winners / rows.length * 100).toFixed(1) + '% positive</div></div>' +
+    '<div class="metric"><div class="label">Most Profitable</div>' +
+      '<div class="value" style="font-size:16px;white-space:normal">' +
+        htmlEscape(nameByTicker.get(best.ticker) || best.ticker) + '</div>' +
+      '<div class="delta ' + (best.roi >= 0 ? "pos" : "neg") + '">' + roiText(best.roi) + '</div></div>' +
+    '<div class="metric"><div class="label">Anomalies Flagged</div>' +
+      '<div class="value">' + flagged + '</div>' +
+      '<div class="delta off">assets with data warnings</div></div>';
+}
+
+function renderCategoryCharts(rows) {
+  const winners = rows.filter(r => r.roi > 0).length;
+  renderGeneralPlot("category-winners-chart", [{
+    type: "pie",
+    labels: ["Positive DCA ROI", "Zero or negative ROI"],
+    values: [winners, rows.length - winners],
+    hole: 0.62,
+    sort: false,
+    marker: { colors: ["#00cc96", "#ef553b"] },
+    textinfo: "label+percent",
+    hovertemplate: "%{label}<br>%{value} assets (%{percent})<extra></extra>"
+  }], {
+    height: 300,
+    margin: { l: 16, r: 16, t: 8, b: 12 },
+    showlegend: false,
+    annotations: [{
+      text: rows.length + "<br>assets",
+      showarrow: false,
+      font: { size: 19, color: "#fafafa" }
+    }]
+  });
+
+  renderGeneralPlot("category-risk-chart", [{
+    type: "scattergl",
+    mode: "markers",
+    x: rows.map(r => r.mdd),
+    y: rows.map(r => r.roi),
+    customdata: rows.map(r => [r.ticker, r.vol, r.sharpe]),
+    marker: {
+      color: rows.map(r => r.roi >= 0 ? "#00cc96" : "#ef553b"),
+      size: 9,
+      opacity: 0.8
+    },
+    hovertemplate: "%{customdata[0]}<br>DCA return: %{y:.2f}%" +
+      "<br>Maximum drawdown: %{x:.2f}%<br>Volatility: %{customdata[1]:.1f}%" +
+      "<br>Sharpe: %{customdata[2]:.2f}<extra></extra>"
+  }], {
+    height: 390,
+    margin: { l: 62, r: 16, t: 12, b: 48 },
+    xaxis: { title: "Maximum drawdown (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: { title: "DCA return (%)", gridcolor: "#2d3441", zeroline: true }
+  });
+
+  const months = [...new Set(rows.flatMap(r => [...r.monthly.keys()]))].sort();
+  const top = rows.slice(0, 10);
+  renderGeneralPlot("category-top-chart", [
+    {
+      type: "bar",
+      name: "DCA return",
+      orientation: "h",
+      x: top.map(r => r.roi),
+      y: top.map(r => r.ticker),
+      customdata: top.map(r => r.name),
+      marker: { color: "#00cc96" },
+      hovertemplate: "%{customdata} (%{y})<br>DCA return: %{x:.2f}%<extra></extra>"
+    },
+    {
+      type: "bar",
+      name: "Price return",
+      orientation: "h",
+      x: top.map(r => r.priceRet),
+      y: top.map(r => r.ticker),
+      customdata: top.map(r => r.name),
+      marker: { color: "#636efa" },
+      hovertemplate: "%{customdata} (%{y})<br>Price return: %{x:.2f}%<extra></extra>"
+    }
+  ], {
+    height: 390,
+    barmode: "group",
+    margin: { l: 90, r: 20, t: 12, b: 55 },
+    legend: { orientation: "h", y: -0.2 },
+    xaxis: { title: "Return (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: {
+      categoryorder: "array",
+      categoryarray: top.map(r => r.ticker),
+      autorange: "reversed",
+      gridcolor: "#2d3441"
+    }
+  });
+
+  renderGeneralPlot("category-roi-chart", [{
+    type: "bar",
+    orientation: "h",
+    x: rows.map(r => r.roi),
+    y: rows.map(r => r.ticker),
+    customdata: rows.map(r => r.name),
+    marker: {
+      color: rows.map(r => r.roi >= 0 ? "#00cc96" : "#ef553b")
+    },
+    hovertemplate: "%{customdata} (%{y})<br>DCA return: %{x:.2f}%<extra></extra>"
+  }], {
+    height: Math.min(390, Math.max(300, rows.length * 24 + 80)),
+    margin: { l: 90, r: 20, t: 12, b: 45 },
+    xaxis: { title: "DCA return (%)", gridcolor: "#2d3441", zeroline: true },
+    yaxis: {
+      categoryorder: "array",
+      categoryarray: rows.map(r => r.ticker),
+      autorange: "reversed",
+      gridcolor: "#2d3441"
+    }
+  });
+
+  renderGeneralPlot("category-monthly-chart", [{
+    type: "heatmap",
+    x: months,
+    y: rows.map(r => r.ticker),
+    z: rows.map(r => months.map(key => {
+      const month = r.monthly.get(key);
+      return month ? month.price : null;
+    })),
+    zmid: 0,
+    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
+    hovertemplate: "%{y}<br>%{x}: %{z:.1f}%<extra></extra>",
+    colorbar: { title: "%", thickness: 12 }
+  }], {
+    height: Math.max(340, rows.length * 24 + 130),
+    margin: { l: 90, r: 20, t: 12, b: 65 },
+    xaxis: { type: "category", tickangle: -45, gridcolor: "#2d3441" },
+    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
+  });
+
+  const seasonality = rows.map(r => seasonalityFromMonths(r.monthly));
+  renderGeneralPlot("category-seasonality-chart", [{
+    type: "heatmap",
+    x: MONTH_LABELS,
+    y: rows.map(r => r.ticker),
+    z: seasonality,
+    zmid: 0,
+    text: seasonality.map(row => row.map(v => v === null ? "—" : v.toFixed(1))),
+    texttemplate: "%{text}",
+    textfont: { size: 9, color: "#fafafa" },
+    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
+    showscale: false,
+    hovertemplate: "%{y} · %{x}<br>Median DCA return: %{z:.2f}%<extra></extra>"
+  }], {
+    height: Math.max(340, rows.length * 24 + 100),
+    margin: { l: 90, r: 20, t: 12, b: 45 },
+    xaxis: { type: "category", gridcolor: "#2d3441" },
+    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
+  });
+}
+
+function renderCategoryDetails(results) {
+  const nameByTicker = new Map(Object.entries(ALL_ASSETS).map(([name, ticker]) => [ticker, name]));
+  const rows = results.filter(r => r.data).map(r => {
+    const last = r.data.close.length - 1;
+    const signal = new Array(r.data.close.length).fill(true);
+    const sim = simulateDCA(r.data, state.dailyAmount, signal);
+    const mdd = maxDrawdown(r.data.close) * 100;
+    return {
+      ticker: r.ticker,
+      name: nameByTicker.get(r.ticker) || r.ticker,
+      roi: sim.roiPct[last],
+      priceRet: (r.data.close[last] / r.data.close[0] - 1) * 100,
+      days: r.data.dates.length,
+      mdd,
+      anomalies: detectAnomalies(r.data, mdd),
+      monthly: monthlyReturns(r.data),
+      ...assetStats(r.data)
+    };
+  }).sort((a, b) => b.roi - a.roi);
+
+  renderCategorySummary(results, rows, nameByTicker);
+
+  if (!rows.length) {
+    ["category-winners-chart", "category-risk-chart", "category-top-chart",
+      "category-roi-chart", "category-monthly-chart", "category-seasonality-chart"]
+      .forEach(id => clearPlot(id, "No usable price history for this category."));
+    ["category-members", "category-momentum", "category-top", "category-anomalies"]
+      .forEach(id => document.getElementById(id).innerHTML =
+        '<p class="hint">No usable price history for this category.</p>');
+    return;
+  }
+
+  renderCategoryCharts(rows);
+
+  const body = rows.map(r =>
+    "<tr>" +
+      "<td>" + r.name + " (" + r.ticker + ")</td>" +
+      '<td style="color:' + roiColor(r.roi) + '">' + roiText(r.roi) + "</td>" +
+      "<td>" + r.mdd.toFixed(2) + "%</td>" +
+      "<td>" + fmt(r.vol, 1) + "%</td>" +
+      "<td>" + fmt(r.sharpe, 2) + "</td>" +
+      "<td>" + fmtMoney(r.liquidity) + "</td>" +
+      "<td>×" + fmt(r.liqTrend, 2) + "</td>" +
+    "</tr>"
+  ).join("");
+  const best = rows[0], worst = rows[rows.length - 1];
+  document.getElementById("category-members").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Asset</th><th>DCA ROI</th><th>Max DD</th><th>Volatility</th><th>Sharpe</th>" +
+      "<th>Liquidity/day</th><th>30d trend</th>" +
+    "</tr></thead><tbody>" + body + "</tbody></table></div>" +
+    '<p class="hint">Dispersion: best ' + best.ticker + " (" + roiText(best.roi) +
+      ") vs worst " + worst.ticker + " (" + roiText(worst.roi) + "), spread " +
+      fmt(best.roi - worst.roi, 1) + " pp. A wide spread means asset picking matters here.</p>";
+
+  const momentumRows = rows.slice()
+    .sort((x, y) => (y.ret1m ?? -Infinity) - (x.ret1m ?? -Infinity))
+    .map(r =>
+      "<tr>" +
+        "<td>" + r.name + " (" + r.ticker + ")</td>" +
+        "<td>" + retText(r.ret1m) + "</td>" +
+        "<td>" + retText(r.ret3m) + "</td>" +
+        "<td>" + retText(r.ret6m) + "</td>" +
+        "<td>" + retText(r.ret12m) + "</td>" +
+      "</tr>"
+    ).join("");
+  document.getElementById("category-momentum").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Asset</th><th>1 month</th><th>3 months</th><th>6 months</th><th>12 months</th>" +
+    "</tr></thead><tbody>" + momentumRows + "</tbody></table></div>" +
+    '<p class="hint">Price return of each category member over each window, ' +
+      "sorted by the last month. Long horizons are blank when history is too short.</p>";
+
+  const topRows = rows.slice(0, 10).map((r, i) =>
+    "<tr>" +
+      "<td>" + (i + 1) + "</td>" +
+      "<td>" + r.name + "</td>" +
+      "<td>" + r.ticker + "</td>" +
+      '<td style="color:' + roiColor(r.roi) + '">' + roiText(r.roi) + "</td>" +
+      '<td style="color:' + roiColor(r.priceRet) + '">' + roiText(r.priceRet) + "</td>" +
+      "<td>" + r.mdd.toFixed(2) + "%</td>" +
+      "<td>" + fmtMoney(r.liquidity) + "</td>" +
+      "<td>" + r.days + "</td>" +
+    "</tr>"
+  ).join("");
+  document.getElementById("category-top").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Rank</th><th>Asset</th><th>Ticker</th><th>DCA ROI</th><th>Price Return</th>" +
+      "<th>Max Drawdown</th><th>Liquidity/day</th><th>Days</th>" +
+    "</tr></thead><tbody>" + topRows + "</tbody></table></div>" +
+    '<p class="hint">DCA ROI = equal daily buys, no indicator filter. ' +
+      "Price Return = first to last close, for comparison. " +
+      "Liquidity/day = average daily dollar volume (close × volume) in the window.</p>";
+
+  const flagged = rows.filter(r => r.anomalies.length);
+  document.getElementById("category-anomalies").innerHTML = flagged.length
+    ? '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+        "<th>Asset</th><th>Ticker</th><th>Anomaly</th>" +
+      "</tr></thead><tbody>" +
+        flagged.map(r =>
+          "<tr><td>" + r.name + "</td><td>" + r.ticker + "</td>" +
+          "<td>" + htmlEscape(r.anomalies.join(" · ")) + "</td></tr>"
+        ).join("") +
+      "</tbody></table></div>"
+    : '<p class="hint">No anomalies detected in this category.</p>';
+}
+
+async function renderCategoryAnalysis() {
+  const token = ++categoryRenderToken;
+  const category = document.getElementById("category-view").value;
+  const status = document.getElementById("category-status");
+  const tickers = Object.values(ASSET_CATALOGUE[category] || {});
+  status.textContent = "· Loading " + tickers.length + " assets…";
+  ["category-summary", "category-members", "category-momentum", "category-top", "category-anomalies"]
+    .forEach(id => document.getElementById(id).innerHTML = '<p class="hint">Loading…</p>');
+
+  const results = await Promise.all(tickers.map(async ticker => {
+    try {
+      return { ticker, data: await getData(ticker, state.daysBack) };
+    } catch (error) {
+      return { ticker, data: null };
+    }
+  }));
+  if (token !== categoryRenderToken) return;
+
+  status.textContent = "· " + category.replace(/^── | ──$/g, "") +
+    " · " + results.filter(r => r.data).length + " assets · " + state.daysBack + "-day window";
+
+  renderCategoryDetails(results);
+}
+
+function refreshCategoryIfActive() {
+  if (document.getElementById("category-tab").getAttribute("aria-selected") === "true") {
+    renderCategoryAnalysis();
+  }
+}
+
 async function renderGeneralAnalysis() {
   generalAnalysisLoaded = true;
   const token = ++generalAnalysisToken;
@@ -1151,6 +1659,9 @@ async function renderGeneralAnalysis() {
       '<div class="value">' + a.valid.length + ' / ' + a.rows.length + '</div></div>' +
     '<div class="metric"><div class="label">Median DCA ROI (no strategy)</div>' +
       '<div class="value" style="color:' + roiColor(a.medianRoi) + '">' + roiText(a.medianRoi) + '</div></div>' +
+    '<div class="metric"><div class="label">Median daily $ volume</div>' +
+      '<div class="value">' + fmtMoney(a.medianLiquidity) + '</div>' +
+      '<div class="delta off">liquidity across assets</div></div>' +
     '<div class="metric"><div class="label">Winners / Losers</div>' +
       '<div class="value">' + a.winners + ' / ' + losers + '</div>' +
       '<div class="delta off">' + (a.valid.length ? (a.winners / a.valid.length * 100).toFixed(1) : "0.0") + '% positive</div></div>' +
@@ -1166,6 +1677,11 @@ async function renderGeneralAnalysis() {
       "<td>" + c.name + "</td>" +
       "<td>" + c.count + "</td>" +
       '<td style="color:' + roiColor(c.medianRoi) + '">' + roiText(c.medianRoi) + "</td>" +
+      "<td>" + fmt(c.spread, 1) + " pp</td>" +
+      "<td>" + fmt(c.medianVol, 1) + "%</td>" +
+      "<td>" + fmt(c.medianSharpe, 2) + "</td>" +
+      "<td>" + fmtMoney(c.medianLiquidity) + "</td>" +
+      "<td>×" + fmt(c.medianLiqTrend, 2) + "</td>" +
       "<td>" + c.best.name + " (" + c.best.ticker + ") · " +
         '<span style="color:' + roiColor(c.best.roi) + '">' + roiText(c.best.roi) + "</span></td>" +
       "<td>" + c.worst.name + " (" + c.worst.ticker + ") · " +
@@ -1175,9 +1691,28 @@ async function renderGeneralAnalysis() {
   ).join("");
   document.getElementById("general-categories").innerHTML =
     '<div class="table-scroll"><table class="data-table"><thead><tr>' +
-      "<th>Category</th><th>Assets</th><th>Median DCA ROI</th>" +
-      "<th>Best asset</th><th>Worst asset</th><th>Flagged</th>" +
+      "<th>Category</th><th>Assets</th><th>Median DCA ROI</th><th>ROI spread</th>" +
+      "<th>Median volatility</th><th>Median Sharpe</th><th>Median liquidity</th>" +
+      "<th>30d trend</th><th>Best asset</th><th>Worst asset</th><th>Flagged</th>" +
     "</tr></thead><tbody>" + catRows + "</tbody></table></div>";
+
+  const momentumRows = a.categories.slice()
+    .sort((x, y) => (y.momentum.m1 ?? -Infinity) - (x.momentum.m1 ?? -Infinity))
+    .map(c =>
+      "<tr>" +
+        "<td>" + c.name + "</td>" +
+        "<td>" + retText(c.momentum.m1) + "</td>" +
+        "<td>" + retText(c.momentum.m3) + "</td>" +
+        "<td>" + retText(c.momentum.m6) + "</td>" +
+        "<td>" + retText(c.momentum.m12) + "</td>" +
+      "</tr>"
+    ).join("");
+  document.getElementById("general-momentum").innerHTML =
+    '<div class="table-scroll"><table class="data-table"><thead><tr>' +
+      "<th>Category</th><th>1 month</th><th>3 months</th><th>6 months</th><th>12 months</th>" +
+    "</tr></thead><tbody>" + momentumRows + "</tbody></table></div>" +
+    '<p class="hint">Median price return of category members over each window, ' +
+      'sorted by the last month. Long horizons are blank when history is too short.</p>';
 
   const topRows = a.top.map((r, i) =>
     "<tr>" +
@@ -1188,16 +1723,18 @@ async function renderGeneralAnalysis() {
       '<td style="color:' + roiColor(r.roi) + '">' + roiText(r.roi) + "</td>" +
       '<td style="color:' + roiColor(r.priceRet) + '">' + roiText(r.priceRet) + "</td>" +
       "<td>" + r.mdd.toFixed(2) + "%</td>" +
+      "<td>" + fmtMoney(r.liquidity) + "</td>" +
       "<td>" + r.days + "</td>" +
     "</tr>"
   ).join("");
   document.getElementById("general-top").innerHTML =
     '<div class="table-scroll"><table class="data-table"><thead><tr>' +
       "<th>Rank</th><th>Asset</th><th>Ticker</th><th>Category</th>" +
-      "<th>DCA ROI</th><th>Price Return</th><th>Max Drawdown</th><th>Days</th>" +
+      "<th>DCA ROI</th><th>Price Return</th><th>Max Drawdown</th><th>Liquidity/day</th><th>Days</th>" +
     "</tr></thead><tbody>" + topRows + "</tbody></table></div>" +
     '<p class="hint">DCA ROI = equal daily buys, no indicator filter. ' +
-      'Price Return = first to last close, for comparison.</p>';
+      'Price Return = first to last close, for comparison. ' +
+      'Liquidity/day = average daily dollar volume (close × volume) in the window.</p>';
 
   const shown = a.anomalies.slice(0, 30);
   const anomalyRows = shown.map(r =>
@@ -1308,6 +1845,11 @@ function renderMetrics(data, sim) {
   const cls = profit >= 0 ? "pos" : "neg";
   const sign = roi >= 0 ? "+" : "";
 
+  const stats = assetStats(data);
+  const trendDir = stats.liqTrend >= 1 ? "▲" : "▼";
+  const mdd = maxDrawdown(data.close) * 100;
+  const anomalies = detectAnomalies(data, mdd);
+
   document.getElementById("metrics").innerHTML =
     '<div class="metric"><div class="label">Total Invested</div>' +
     '<div class="value">$' + fmt(invested, 2) + '</div></div>' +
@@ -1320,7 +1862,69 @@ function renderMetrics(data, sim) {
     '<div class="value">$' + fmtPrice(avgCost) + '</div></div>' +
     '<div class="metric"><div class="label">Buy Days</div>' +
     '<div class="value">' + buyDays + ' / ' + n + '</div>' +
-    '<div class="delta off">' + fmt(pct, 1) + '%</div></div>';
+    '<div class="delta off">' + fmt(pct, 1) + '%</div></div>' +
+    '<div class="metric"><div class="label">Liquidity / day</div>' +
+    '<div class="value">' + fmtMoney(stats.liquidity) + '</div>' +
+    '<div class="delta off">' + trendDir + ' 30d vs window ×' + fmt(stats.liqTrend, 2) + '</div></div>' +
+    '<div class="metric"><div class="label">Volatility (ann.)</div>' +
+    '<div class="value">' + fmt(stats.vol, 1) + '%</div></div>' +
+    '<div class="metric"><div class="label">Sharpe (annualised)</div>' +
+    '<div class="value">' + fmt(stats.sharpe, 2) + '</div></div>' +
+    '<div class="metric"><div class="label">Momentum 1M / 3M / 6M / 12M</div>' +
+    '<div class="value" style="font-size:14px;white-space:normal">' +
+      [stats.ret1m, stats.ret3m, stats.ret6m, stats.ret12m].map(retText).join(" · ") +
+    '</div></div>' +
+    '<div class="metric"><div class="label">Max Drawdown</div>' +
+    '<div class="value" style="color:var(--danger)">' + fmt(mdd, 1) + '%</div></div>' +
+    '<div class="metric"><div class="label">Anomalies</div>' +
+    '<div class="value">' + anomalies.length + '</div>' +
+    '<div class="delta off">data warnings</div></div>';
+
+  document.getElementById("asset-anomalies").innerHTML = anomalies.length
+    ? '<span style="color:var(--danger)">Data warnings:</span> ' + htmlEscape(anomalies.join(" · "))
+    : "No anomalies detected in this window.";
+}
+
+function renderAssetCharts(data) {
+  const months = monthlyReturns(data);
+  const years = [...new Set([...months.keys()].map(key => key.slice(0, 4)))].sort();
+  const grid = years.map(year => MONTH_LABELS.map((_, i) => {
+    const month = months.get(year + "-" + String(i + 1).padStart(2, "0"));
+    return month ? month.price : null;
+  }));
+
+  renderGeneralPlot("asset-monthly-chart", [{
+    type: "heatmap",
+    x: MONTH_LABELS,
+    y: years,
+    z: grid,
+    zmid: 0,
+    text: grid.map(row => row.map(v => v === null ? "" : v.toFixed(1))),
+    texttemplate: "%{text}",
+    textfont: { size: 9, color: "#fafafa" },
+    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
+    hovertemplate: "%{y} %{x}<br>Price return: %{z:.1f}%<extra></extra>",
+    colorbar: { title: "%", thickness: 12 }
+  }], {
+    height: Math.max(300, years.length * 26 + 100),
+    margin: { l: 60, r: 20, t: 12, b: 45 },
+    xaxis: { type: "category", gridcolor: "#2d3441" },
+    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
+  });
+
+  const seasonal = seasonalityFromMonths(months);
+  renderGeneralPlot("asset-seasonality-chart", [{
+    type: "bar",
+    x: MONTH_LABELS,
+    y: seasonal,
+    marker: { color: seasonal.map(v => (v ?? 0) >= 0 ? "#00cc96" : "#ef553b") },
+    hovertemplate: "%{x}<br>Median DCA return: %{y:.2f}%<extra></extra>"
+  }], {
+    height: 300,
+    margin: { l: 62, r: 20, t: 12, b: 45 },
+    xaxis: { type: "category", gridcolor: "#2d3441" },
+    yaxis: { title: "Median DCA return (%)", gridcolor: "#2d3441", zeroline: true }
+  });
 }
 
 function renderChart(data, sim, signal, values) {
@@ -1330,8 +1934,8 @@ function renderChart(data, sim, signal, values) {
 
   // Dataset has no open: previous close is the day's open (one candle per day).
   const open = data.close.map((c, i) => i > 0 ? data.close[i - 1] : c);
-  // Price's own profit line, normalised to the first close so it can sit next to DCA ROI.
-  const priceRoi = data.close.map(c => (c / (data.close[0] || 1) - 1) * 100);
+  // Buy-and-hold return, to compare against the DCA return.
+  const assetPct = data.close.map(c => (c / data.close[0] - 1) * 100);
 
   const traces = [
     {
@@ -1345,12 +1949,12 @@ function renderChart(data, sim, signal, values) {
       marker: { color: "#3a4559" }
     },
     {
-      x: dates, y: sim.roiPct, type: "scatter", mode: "lines", yaxis: "y3",
-      name: "DCA profit %", line: { color: "#00CC96", width: 2 }
+      x: dates, y: assetPct, type: "scatter", mode: "lines", yaxis: "y3",
+      name: "Asset profit %", line: { color: "#636efa", width: 1.5 }
     },
     {
-      x: dates, y: priceRoi, type: "scatter", mode: "lines", yaxis: "y3",
-      name: "Price profit % (buy & hold)", line: { color: "#AB63FA", width: 2, dash: "dot" }
+      x: dates, y: sim.roiPct, type: "scatter", mode: "lines", yaxis: "y3",
+      name: "DCA profit %", line: { color: "#00CC96", width: 2 }
     }
   ];
 
@@ -1368,7 +1972,7 @@ function renderChart(data, sim, signal, values) {
     paper_bgcolor: "#1a1f2b",
     plot_bgcolor: "#1a1f2b",
     font: { color: "#fafafa", size: 12 },
-    xaxis: { gridcolor: "#2d3441" },
+    xaxis: { gridcolor: "#2d3441", rangeslider: { visible: false } },
     yaxis:  { domain: dom.price, title: "Price", gridcolor: "#2d3441" },
     yaxis2: { domain: dom.vol, title: "Volume", gridcolor: "#2d3441", showticklabels: false },
     yaxis3: { domain: dom.profit, title: "Profit %", gridcolor: "#2d3441", zeroline: true },
@@ -1466,6 +2070,12 @@ function showError(msg) {
     htmlEscape(msg) + '</div></div>';
   document.getElementById("chart").innerHTML = "";
   document.getElementById("purchase-log").innerHTML = "";
+  document.getElementById("asset-anomalies").textContent = "";
+  ["asset-monthly-chart", "asset-seasonality-chart"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el.classList.contains("js-plotly-plot")) Plotly.purge(el);
+    el.innerHTML = "";
+  });
 }
 
 /* =========================================================================
@@ -1495,6 +2105,7 @@ async function render() {
 
     renderMetrics(data, sim);
     renderChart(data, sim, signal, values);
+    renderAssetCharts(data);
     renderLog(data, sim, signal);
 
   } catch (e) {
@@ -1748,16 +2359,19 @@ async function runOptimizer() {
 /* =========================================================================
    Initialisation
    ========================================================================= */
+const ANALYSIS_VIEWS = ["general", "category", "asset"];
+
 function selectAnalysisTab(view) {
-  const specific = view === "specific";
-  document.getElementById("general-tab").setAttribute("aria-selected", String(!specific));
-  document.getElementById("specific-tab").setAttribute("aria-selected", String(specific));
-  document.getElementById("general-tab").tabIndex = specific ? -1 : 0;
-  document.getElementById("specific-tab").tabIndex = specific ? 0 : -1;
-  document.getElementById("general-panel").classList.toggle("hidden", specific);
-  document.getElementById("specific-panel").classList.toggle("hidden", !specific);
-  if (specific) {
+  ANALYSIS_VIEWS.forEach(name => {
+    const active = name === view;
+    document.getElementById(name + "-tab").setAttribute("aria-selected", String(active));
+    document.getElementById(name + "-tab").tabIndex = active ? 0 : -1;
+    document.getElementById(name + "-panel").classList.toggle("hidden", !active);
+  });
+  if (view === "asset") {
     render();
+  } else if (view === "category") {
+    renderCategoryAnalysis();
   } else if (generalAnalysisData) {
     renderGeneralCharts(generalAnalysisData);
   }
@@ -1772,6 +2386,13 @@ async function init() {
     catSel.appendChild(o);
   });
   populateAssetSelect(catSel.value);
+
+  const categoryView = document.getElementById("category-view");
+  Object.keys(ASSET_CATALOGUE).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c.replace(/^── | ──$/g, "");
+    categoryView.appendChild(o);
+  });
 
   // Initial state from inputs
   updateDaysSliderMax();
@@ -1798,6 +2419,7 @@ async function init() {
     state.dailyAmount = v;
     e.target.value = v;
     if (generalAnalysisLoaded) renderGeneralAnalysis();
+    refreshCategoryIfActive();
     render();
   });
 
@@ -1809,6 +2431,7 @@ async function init() {
   });
   daysSlider.addEventListener("change", () => {
     if (generalAnalysisLoaded) renderGeneralAnalysis();
+    refreshCategoryIfActive();
     render();
   });
 
@@ -1826,15 +2449,25 @@ async function init() {
   });
 
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
-  document.getElementById("general-tab").addEventListener("click", () => selectAnalysisTab("general"));
-  document.getElementById("specific-tab").addEventListener("click", () => selectAnalysisTab("specific"));
+  ANALYSIS_VIEWS.forEach(name => {
+    document.getElementById(name + "-tab").addEventListener("click", () => selectAnalysisTab(name));
+  });
+  document.getElementById("category-view").addEventListener("change", renderCategoryAnalysis);
   document.querySelector(".analysis-tabs").addEventListener("keydown", event => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const view = event.key === "Home" || event.key === "ArrowLeft" ? "general" : "specific";
+    const current = ANALYSIS_VIEWS.findIndex(name =>
+      document.getElementById(name + "-tab").getAttribute("aria-selected") === "true");
+    let next;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = ANALYSIS_VIEWS.length - 1;
+    else if (event.key === "ArrowLeft") next = (current - 1 + ANALYSIS_VIEWS.length) % ANALYSIS_VIEWS.length;
+    else next = (current + 1) % ANALYSIS_VIEWS.length;
+    const view = ANALYSIS_VIEWS[next];
     selectAnalysisTab(view);
     document.getElementById(view + "-tab").focus();
   });
+
   // Resize the plot by width only. Plotly's own responsive resize drops the
   // chart's fixed layout height, which squashes it to a thin strip.
   let chartWidth = 0;
