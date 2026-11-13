@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Daily $5 DCA Backtester + Auto-Optimizer</title>
+<title>Daily DCA Dashboard</title>
 <script src="plotly.min.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -27,6 +27,15 @@
   }
   #app { min-height: 100vh; }
   #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: hidden; margin: 0 auto; }
+  .app-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .app-header h1 { margin: 0 0 18px; }
+  .language-control { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .language-control label { color: var(--muted); font-size: 13px; }
+  .language-control select {
+    padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font: inherit;
+  }
+  .language-control select:focus-visible { outline: 2px solid var(--accent); }
   .settings-card {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 18px; margin-bottom: 22px;
@@ -146,6 +155,28 @@
   details > summary::-webkit-details-marker { display: none; }
   details[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   details > .log-wrap { border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; }
+  .dashboard-details { margin: 14px 0 22px; }
+  .dashboard-details > summary, .settings-disclosure > summary, .metric-details > summary {
+    cursor: pointer; color: var(--text); font-size: 14px; font-weight: 600;
+    padding: 11px 14px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); list-style: none;
+  }
+  .dashboard-details > summary::-webkit-details-marker,
+  .settings-disclosure > summary::-webkit-details-marker,
+  .metric-details > summary::-webkit-details-marker { display: none; }
+  .dashboard-details[open] > summary, .settings-disclosure[open] > summary,
+  .metric-details[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .dashboard-details > .general-chart-grid, .settings-disclosure > .asset-settings,
+  .metric-details > .metrics {
+    padding: 14px; background: rgba(255,255,255,.015);
+    border: 1px solid var(--border); border-top: 0;
+    border-radius: 0 0 var(--radius) var(--radius); margin: 0;
+  }
+  .settings-disclosure { grid-column: 1 / -1; }
+  .metric-details { grid-column: 1 / -1; }
+  .metric-details > .metrics { padding: 12px 0 0; background: transparent; border: 0; }
+  .metric-details > .metrics .metric { background: var(--panel-2); }
+  .metric-details > p { padding: 0 14px; }
   .hidden { display: none !important; }
   .spinner {
     width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25);
@@ -164,6 +195,9 @@
   }
   @media (max-width: 560px) {
     #main { padding: 18px 12px 40px; }
+    .app-header { align-items: flex-start; }
+    .app-header h1 { font-size: 22px; }
+    .language-control { flex-direction: column; align-items: flex-end; gap: 3px; }
     #main h2 { font-size: 18px; }
     #chart { padding: 4px; }
     .metrics { grid-template-columns: 1fr; }
@@ -180,12 +214,21 @@
 
 <div id="app">
   <main id="main">
-    <h1>📈 Daily $5 DCA Backtester</h1>
+    <header class="app-header">
+      <h1>📈 Daily DCA Dashboard</h1>
+      <div class="language-control">
+        <label for="language">Language</label>
+        <select id="language" aria-label="Language">
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+    </header>
     <section class="settings-card" aria-label="Shared analysis settings">
       <h2>Shared settings</h2>
       <div class="settings-grid">
         <div>
-          <label for="daily-amount">Daily amount ($)</label>
+          <label for="daily-amount">Contribution per available data day ($)</label>
           <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
         </div>
         <div>
@@ -193,6 +236,7 @@
           <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
         </div>
       </div>
+      <p class="hint">The contribution and look-back settings apply across all views. General and Category use plain DCA; Asset can optionally apply an entry filter.</p>
     </section>
 
     <nav class="analysis-tabs" role="tablist" aria-label="Analysis view">
@@ -207,8 +251,8 @@
     <section class="block" id="general-section">
       <h2>🌍 General Analysis <span class="hint" id="general-window"></span></h2>
       <p class="hint" style="margin-top:-8px">
-        Every listed asset, plain DCA (buy every day, no RSI/CCI/MFI/F&amp;G filter)
-        over the current look-back. This is the baseline each strategy is compared against.
+        Plain DCA across the asset catalogue: the contribution is invested on every available price-data day.
+        Asset histories can start and end on different dates, so comparisons may have different coverage.
       </p>
       <div class="metrics" id="general-summary">
         <p class="hint">Loading local price history for the asset catalogue…</p>
@@ -217,34 +261,46 @@
       <h3 class="analysis-title">Visual overview</h3>
       <div class="general-chart-grid">
         <section class="general-chart-card">
-          <h4>Winners vs. non-winners</h4>
-          <div class="general-chart" id="general-breadth-chart"></div>
-        </section>
-        <section class="general-chart-card">
           <h4>Median DCA return by category</h4>
           <div class="general-chart" id="general-category-chart"></div>
         </section>
         <section class="general-chart-card">
-          <h4>Top 10 companies: DCA vs. price return</h4>
+          <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="general-top-chart"></div>
-        </section>
-        <section class="general-chart-card">
-          <h4>Return vs. maximum drawdown</h4>
-          <div class="general-chart" id="general-risk-chart"></div>
         </section>
       </div>
 
-      <h3 class="analysis-title">Per-category overview</h3>
-      <div id="general-categories"></div>
+      <details class="dashboard-details">
+        <summary>More charts: winners and risk</summary>
+        <div class="general-chart-grid">
+          <section class="general-chart-card">
+            <h4>Winners vs. non-winners</h4>
+            <div class="general-chart" id="general-breadth-chart"></div>
+          </section>
+          <section class="general-chart-card">
+            <h4>DCA return vs. underlying asset drawdown</h4>
+            <div class="general-chart" id="general-risk-chart"></div>
+          </section>
+        </div>
+      </details>
 
-      <h3 class="analysis-title">Momentum by category (median return)</h3>
-      <div id="general-momentum"></div>
+      <details class="dashboard-details">
+        <summary>Category statistics and momentum</summary>
+        <h3 class="analysis-title">Per-category overview</h3>
+        <div id="general-categories"></div>
+        <h3 class="analysis-title">Momentum by category (median price return)</h3>
+        <div id="general-momentum"></div>
+      </details>
 
-      <h3 class="analysis-title">Top 10 most profitable (no strategy)</h3>
-      <div id="general-top"></div>
+      <details class="dashboard-details">
+        <summary>Top 10 assets — detailed table</summary>
+        <div id="general-top"></div>
+      </details>
 
-      <h3 class="analysis-title">Anomalies</h3>
-      <div id="general-anomalies"></div>
+      <details class="dashboard-details">
+        <summary>Data warnings and anomalies</summary>
+        <div id="general-anomalies"></div>
+      </details>
     </section>
     </div>
 
@@ -264,11 +320,8 @@
       <div class="metrics" id="category-summary">
         <p class="hint">Select a category to see its summary.</p>
       </div>
+      <p class="hint">Plain DCA across the assets in this category. Returns are calculated over each asset's available history in the selected look-back.</p>
       <div class="general-chart-grid">
-        <section class="general-chart-card">
-          <h4>Winners vs. non-winners</h4>
-          <div class="general-chart" id="category-winners-chart"></div>
-        </section>
         <section class="general-chart-card">
           <h4>DCA return by asset</h4>
           <div class="general-chart" id="category-roi-chart"></div>
@@ -277,10 +330,18 @@
           <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="category-top-chart"></div>
         </section>
-        <section class="general-chart-card">
-          <h4>Return vs. maximum drawdown</h4>
-          <div class="general-chart" id="category-risk-chart"></div>
-        </section>
+      </div>
+      <details class="dashboard-details">
+        <summary>More charts: breadth, risk and monthly patterns</summary>
+        <div class="general-chart-grid">
+          <section class="general-chart-card">
+            <h4>Winners vs. non-winners</h4>
+            <div class="general-chart" id="category-winners-chart"></div>
+          </section>
+          <section class="general-chart-card">
+            <h4>DCA return vs. underlying asset drawdown</h4>
+            <div class="general-chart" id="category-risk-chart"></div>
+          </section>
         <section class="general-chart-card wide">
           <h4>Monthly price return by asset</h4>
           <div class="general-chart" id="category-monthly-chart"></div>
@@ -289,18 +350,27 @@
           <h4>DCA seasonality by asset (median by calendar month)</h4>
           <div class="general-chart" id="category-seasonality-chart"></div>
         </section>
-      </div>
-      <h3 class="analysis-title">Per-asset overview</h3>
-      <div id="category-members"></div>
+        </div>
+      </details>
+      <details class="dashboard-details">
+        <summary>Per-asset statistics</summary>
+        <div id="category-members"></div>
+      </details>
 
-      <h3 class="analysis-title">Momentum by asset</h3>
-      <div id="category-momentum"></div>
+      <details class="dashboard-details">
+        <summary>Asset momentum</summary>
+        <div id="category-momentum"></div>
+      </details>
 
-      <h3 class="analysis-title">Top 10 most profitable</h3>
-      <div id="category-top"></div>
+      <details class="dashboard-details">
+        <summary>Top 10 assets — detailed table</summary>
+        <div id="category-top"></div>
+      </details>
 
-      <h3 class="analysis-title">Anomalies</h3>
-      <div id="category-anomalies"></div>
+      <details class="dashboard-details">
+        <summary>Data warnings and anomalies</summary>
+        <div id="category-anomalies"></div>
+      </details>
     </section>
     </div>
 
@@ -319,41 +389,36 @@
           </div>
         </div>
       </section>
-      <section>
-        <h2>🎛️ Entry Indicator</h2>
-        <label for="indicator">Indicator</label>
-        <select id="indicator"></select>
-        <div id="indicator-params"></div>
-        <p id="indicator-hint" class="hint"></p>
-      </section>
-      <section>
-        <h2>🔍 Auto-Optimizer</h2>
-        <p class="hint" style="margin-top:0">
-          Searches <strong>every indicator and config</strong> plus the
-          <em>no-restriction</em> baseline, using a train/test split to detect overfitting.
-        </p>
-        <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
-        <input id="split" type="range" min="50" max="85" step="5" value="70">
-        <div style="margin-top:14px">
-          <button id="run-opt" type="button">🚀 Find best config</button>
+      <details class="settings-disclosure" open>
+        <summary>Optional strategy tools — indicators and optimizer</summary>
+        <div class="asset-settings">
+          <section>
+            <h2>🎛️ DCA Strategy</h2>
+            <label for="indicator">Indicator</label>
+            <select id="indicator"></select>
+            <div id="indicator-params"></div>
+            <p id="indicator-hint" class="hint"></p>
+          </section>
+          <section>
+            <h2>🔍 Auto-Optimizer</h2>
+            <p class="hint" style="margin-top:0">
+              Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.
+            </p>
+            <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
+            <input id="split" type="range" min="50" max="85" step="5" value="70">
+            <div style="margin-top:14px">
+              <button id="run-opt" type="button">🚀 Find best config</button>
+            </div>
+          </section>
         </div>
-      </section>
+      </details>
     </section>
 
     <section class="block" id="asset-view">
       <h2 id="asset-title">📊 —</h2>
+      <p class="hint" id="asset-context">Plain DCA invests the selected contribution on every available price-data day.</p>
       <div class="metrics" id="metrics"></div>
       <div id="chart"></div>
-      <div class="general-chart-grid" style="margin-top:22px">
-        <section class="general-chart-card wide">
-          <h4>Monthly price return</h4>
-          <div class="general-chart" id="asset-monthly-chart"></div>
-        </section>
-        <section class="general-chart-card wide">
-          <h4>DCA seasonality (median by calendar month)</h4>
-          <div class="general-chart" id="asset-seasonality-chart"></div>
-        </section>
-      </div>
       <p class="hint" id="asset-anomalies"></p>
     </section>
 
@@ -384,6 +449,337 @@
 </div>
 
 <script>
+const TRANSLATIONS_ES = {
+  "Daily DCA Dashboard": "Panel de inversión periódica (DCA)",
+  "Language": "Idioma",
+  "Shared settings": "Configuración general",
+  "Shared analysis settings": "Configuración general del análisis",
+  "Contribution per available data day ($)": "Aporte por día con datos disponibles ($)",
+  "The contribution and look-back settings apply across all views. General and Category use plain DCA; Asset can optionally apply an entry filter.": "El aporte y el período se aplican a todas las vistas. General y Categoría usan DCA simple; en Activo puedes aplicar un filtro de compra.",
+  "Look-back period (days)": "Período de análisis (días)",
+  "Analysis view": "Vista del análisis",
+  "🌍 General Analysis": "🌍 Vista general",
+  "📁 Category Analysis": "📁 Vista por categoría",
+  "📊 Asset Analysis": "📊 Vista por activo",
+  "Plain DCA across the asset catalogue: the contribution is invested on every available price-data day. Asset histories can start and end on different dates, so comparisons may have different coverage.": "DCA simple para todos los activos: se invierte el aporte cada día con datos de precios disponibles. El historial puede cubrir fechas distintas para cada activo.",
+  "Loading local price history for the asset catalogue…": "Cargando el historial local de precios…",
+  "Visual overview": "Resumen visual",
+  "Median DCA return by category": "Rentabilidad mediana del DCA por categoría",
+  "Top 10 assets: DCA vs. price return": "10 activos principales: DCA frente a rentabilidad del precio",
+  "More charts: winners and risk": "Más gráficos: resultados y riesgo",
+  "Winners vs. non-winners": "Activos con resultado positivo y no positivo",
+  "DCA return vs. underlying asset drawdown": "Rentabilidad DCA frente a caída máxima del precio",
+  "Category statistics and momentum": "Estadísticas y tendencia por categoría",
+  "Per-category overview": "Resumen por categoría",
+  "Momentum by category (median price return)": "Tendencia por categoría (rentabilidad mediana del precio)",
+  "Top 10 assets — detailed table": "10 activos principales — tabla detallada",
+  "Data warnings and anomalies": "Avisos y anomalías de datos",
+  "Category analysis settings": "Configuración del análisis por categoría",
+  "Category": "Categoría",
+  "Select a category to see its summary.": "Selecciona una categoría para ver el resumen.",
+  "Plain DCA across the assets in this category. Returns are calculated over each asset's available history in the selected look-back.": "DCA simple para los activos de esta categoría. La rentabilidad usa el historial disponible de cada activo dentro del período seleccionado.",
+  "DCA return by asset": "Rentabilidad DCA por activo",
+  "More charts: breadth, risk and monthly patterns": "Más gráficos: resultados, riesgo y patrones mensuales",
+  "Monthly price return by asset": "Rentabilidad mensual del precio por activo",
+  "DCA seasonality by asset (median by calendar month)": "Estacionalidad DCA por activo (mediana mensual)",
+  "Per-asset statistics": "Estadísticas por activo",
+  "Asset momentum": "Tendencia por activo",
+  "Asset analysis settings": "Configuración del análisis por activo",
+  "Asset": "Activo",
+  "Asset category": "Categoría del activo",
+  "Choose an asset": "Selecciona un activo",
+  "Optional strategy tools — indicators and optimizer": "Herramientas opcionales — indicadores y optimizador",
+  "🎛️ DCA Strategy": "🎛️ Estrategia DCA",
+  "Indicator": "Indicador",
+  "🔍 Auto-Optimizer": "🔍 Optimizador automático",
+  "Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.": "Compara configuraciones de indicadores con una estrategia DCA simple, usando una división cronológica entre entrenamiento y prueba.",
+  "Train split (%)": "Porcentaje de entrenamiento (%)",
+  "🚀 Find best config": "🚀 Buscar la mejor configuración",
+  "Plain DCA invests the selected contribution on every available price-data day.": "El DCA simple invierte el aporte seleccionado cada día con datos de precios disponibles.",
+  "Monthly price return": "Rentabilidad mensual del precio",
+  "DCA seasonality (median by calendar month)": "Estacionalidad DCA (mediana por mes)",
+  "🔍 Auto-Optimizer Results": "🔍 Resultados del optimizador",
+  "📄 View daily purchase log": "📄 Ver registro diario de compras",
+  "Data: downloaded Yahoo Finance snapshot through ": "Datos: instantánea de Yahoo Finance descargada hasta el ",
+  "Data: downloaded Yahoo Finance snapshot through": "Datos: instantánea de Yahoo Finance descargada hasta el",
+  "Candles use the previous close as the open (the snapshot stores high/low/close only).": "Las velas usan el cierre anterior como apertura (la instantánea solo incluye máximo, mínimo y cierre).",
+  "Fear & Greed: alternative.me snapshot (crypto only).": "Fear & Greed: datos de alternative.me (solo criptomonedas).",
+  "Train/test split is chronological (no shuffling) — the test set is the ": "La división entre entrenamiento y prueba es cronológica (sin mezclar datos): el conjunto de prueba es el ",
+  "Train/test split is chronological (no shuffling) — the test set is the": "La división entre entrenamiento y prueba es cronológica (sin mezclar datos): el conjunto de prueba es el",
+  "future": "futuro",
+  "relative to the train set, which is the correct way to validate a time-series strategy.": " respecto al conjunto de entrenamiento; así se valida correctamente una estrategia de series temporales.",
+  "Fees/slippage ignored. Past performance ≠ future results.": "No se incluyen comisiones ni deslizamiento. Los resultados pasados no garantizan resultados futuros.",
+  "No network requests are required; pair data is loaded from local files on demand.": "No se necesitan solicitudes de red; los datos de cada activo se cargan desde archivos locales cuando hacen falta.",
+  "── Crypto ──": "── Criptomonedas ──",
+  "── Technology ──": "── Tecnología ──",
+  "── Pharma & Healthcare ──": "── Farmacéutica y salud ──",
+  "── Financials ──": "── Finanzas ──",
+  "── Banks ──": "── Bancos ──",
+  "── Vulture & Distressed Debt ──": "── Deuda de alto riesgo ──",
+  "── Insurance, Asset Managers & Exchanges ──": "── Seguros, gestión de activos y bolsas ──",
+  "── Energy ──": "── Energía ──",
+  "── Consumer ──": "── Consumo ──",
+  "── Industrials & Defense ──": "── Industria y defensa ──",
+  "── Autos & EV ──": "── Automóviles y vehículos eléctricos ──",
+  "── Utilities & REITs ──": "── Servicios públicos e inmobiliario ──",
+  "── ETFs ──": "── Fondos cotizados (ETF) ──",
+  "── Commodities ──": "── Materias primas ──",
+  "── Shipping & Freight ──": "── Transporte marítimo y carga ──",
+  "Crypto": "Criptomonedas",
+  "Technology": "Tecnología",
+  "Pharma & Healthcare": "Farmacéutica y salud",
+  "Financials": "Finanzas",
+  "Banks": "Bancos",
+  "Vulture & Distressed Debt": "Deuda de alto riesgo",
+  "Insurance, Asset Managers & Exchanges": "Seguros, gestión de activos y bolsas",
+  "Energy": "Energía",
+  "Consumer": "Consumo",
+  "Industrials & Defense": "Industria y defensa",
+  "Autos & EV": "Automóviles y vehículos eléctricos",
+  "Utilities & REITs": "Servicios públicos e inmobiliario",
+  "ETFs": "Fondos cotizados (ETF)",
+  "Commodities": "Materias primas",
+  "Shipping & Freight": "Transporte marítimo y carga",
+  "No restriction (buy every day)": "Sin filtro (comprar cada día)",
+  "Fear & Greed": "Miedo y codicia",
+  "Currently buying every day, no filter applied.": "Se compra cada día, sin aplicar filtros.",
+  "No filter: buys every day.": "Sin filtro: se compra cada día.",
+  "Buy when below": "Comprar cuando esté por debajo",
+  "Don't buy when above": "No comprar cuando esté por encima",
+  "Period": "Período",
+  "Buys when ": "Compra cuando ",
+  " and < ": " y < ",
+  "Buys only when ": "Compra solo cuando ",
+  "Buys every day unless ": "Compra cada día salvo que ",
+  "Assets Analysed": "Activos analizados",
+  "Median DCA ROI (no strategy)": "Rentabilidad mediana DCA (sin filtro)",
+  "Median daily $ volume": "Volumen diario mediano ($)",
+  "liquidity across assets": "liquidez entre activos",
+  "Winners / Losers": "Positivos / negativos",
+  " positive": " positivos",
+  "Most Profitable": "Mayor rentabilidad",
+  "Anomalies Flagged": "Activos con avisos",
+  "assets with data warnings": "activos con avisos de datos",
+  "Positive DCA return": "Rentabilidad DCA positiva",
+  "Zero or negative return": "Rentabilidad cero o negativa",
+  "Positive DCA ROI": "Rentabilidad DCA positiva",
+  "Zero or negative ROI": "Rentabilidad cero o negativa",
+  "Median DCA return: ": "Rentabilidad mediana DCA: ",
+  "Median return (%)": "Rentabilidad mediana (%)",
+  "DCA return": "Rentabilidad DCA",
+  "Price return": "Rentabilidad del precio",
+  "Return (%)": "Rentabilidad (%)",
+  "Maximum drawdown (%)": "Caída máxima (%)",
+  "Maximum drawdown": "Caída máxima",
+  "DCA return (%)": "Rentabilidad DCA (%)",
+  "Volatility": "Volatilidad",
+  "Sharpe": "Sharpe",
+  "assets": "activos",
+  "No usable price history for this category.": "No hay historial de precios válido para esta categoría.",
+  "Chart unavailable: ": "Gráfico no disponible: ",
+  "Loading…": "Cargando…",
+  "· Loading ": "· Cargando ",
+  "· Analysis unavailable": "· Análisis no disponible",
+  "through": "hasta",
+  "Could not load price history for ": "No se pudo cargar el historial de precios de ",
+  " of ": " de ",
+  " assets · ": " activos · ",
+  "-day window": " días",
+  "Could not load ": "No se pudo cargar ",
+  "Error": "Error",
+  "Total Invested": "Total invertido",
+  "Portfolio Value": "Valor de la cartera",
+  "Profit / Loss": "Ganancia / pérdida",
+  "Avg Cost / Unit": "Costo promedio por unidad",
+  "Buy Days": "Días de compra",
+  "Liquidity / day": "Liquidez diaria",
+  "30d vs window": "30 días frente al período",
+  "Volatility (ann.)": "Volatilidad (anualizada)",
+  "Sharpe (annualised)": "Sharpe (anualizado)",
+  "Momentum 1M / 3M / 6M / 12M": "Tendencia 1M / 3M / 6M / 12M",
+  "Max Drawdown": "Caída máxima",
+  "Anomalies": "Anomalías",
+  "data warnings": "avisos de datos",
+  "Data warnings:": "Avisos de datos:",
+  "No anomalies detected in this category.": "No se detectaron anomalías en esta categoría.",
+  "Rank": "Puesto",
+  "Ticker": "Símbolo",
+  "DCA ROI": "Rentabilidad DCA",
+  "Price Return": "Rentabilidad del precio",
+  "Max DD": "Caída máxima",
+  "Max Drawdown": "Caída máxima",
+  "Volatility": "Volatilidad",
+  "Liquidity/day": "Liquidez/día",
+  "30d trend": "Tendencia 30 días",
+  "1 month": "1 mes",
+  "3 months": "3 meses",
+  "6 months": "6 meses",
+  "12 months": "12 meses",
+  "Price return of each category member over each window, ": "Rentabilidad del precio de cada activo de la categoría en cada período, ",
+  " sorted by the last month. Long horizons are blank when history is too short.": " ordenada por el último mes. Los períodos largos aparecen vacíos si no hay suficiente historial.",
+  "Price return of each category member over each window, sorted by the last month. Long horizons are blank when history is too short.": "Rentabilidad del precio de cada activo de la categoría en cada período, ordenada por el último mes. Los períodos largos aparecen vacíos si no hay suficiente historial.",
+  "Dispersion: best ": "Diferencia: mejor ",
+  ") vs worst ": ") frente al peor ",
+  "), spread ": "), diferencia ",
+  " pp. A wide spread means asset picking matters here.": " puntos porcentuales. Una diferencia amplia indica que la selección del activo importa.",
+  "Showing ": "Mostrando ",
+  " of ": " de ",
+  " flagged assets.": " activos con avisos.",
+  "DCA ROI = equal daily buys, no indicator filter. ": "Rentabilidad DCA = compras iguales cada día, sin filtro de indicador. ",
+  "Price Return = first to last close, for comparison. ": "Rentabilidad del precio = variación entre el primer y último cierre. ",
+  "Liquidity/day = average daily dollar volume (close × volume) in the window.": "Liquidez/día = volumen diario promedio en dólares (cierre × volumen) del período.",
+  " assets. ": " activos. ",
+  "ROI spread": "Diferencia de rentabilidad",
+  "Median volatility": "Volatilidad mediana",
+  "Median Sharpe": "Sharpe mediano",
+  "Median liquidity": "Liquidez mediana",
+  "30d trend": "Tendencia 30 días",
+  "Best asset": "Mejor activo",
+  "Worst asset": "Peor activo",
+  "Flagged": "Con avisos",
+  "Top 10 most profitable (no strategy)": "10 activos con mayor rentabilidad (sin filtro)",
+  " · ": " · ",
+  "Data warnings:": "Avisos de datos:",
+  "Price": "Precio",
+  "Volume": "Volumen",
+  "Asset profit %": "Rentabilidad del activo %",
+  "DCA profit %": "Rentabilidad DCA %",
+  "Profit %": "Rentabilidad %",
+  "Buy": "Compra",
+  "Don't buy > ": "No comprar > ",
+  "Buy < ": "Comprar < ",
+  "Date": "Fecha",
+  "Bought?": "¿Comprado?",
+  "Shares Bought": "Unidades compradas",
+  "Cumulative Shares": "Unidades acumuladas",
+  "Could not load local data file ": "No se pudo cargar el archivo local de datos ",
+  "Local Fear & Greed data file did not contain usable data": "El archivo local de Fear & Greed no contiene datos válidos.",
+  "Local Fear & Greed data file is empty": "El archivo local de Fear & Greed está vacío.",
+  "Local price history for ": "El historial local de precios de ",
+  " is missing or invalid": " no existe o no es válido",
+  "fewer than two usable days": "menos de dos días de datos válidos",
+  "short history (<30 days)": "historial corto (<30 días)",
+  "non-positive price": "precio no positivo",
+  " identical closes in a row": " cierres iguales consecutivos",
+  "single-day move ": "variación diaria de ",
+  "drawdown ": "caída de ",
+  "no usable data": "sin datos válidos",
+  "positive": "positivo",
+  "Buy every day": "Comprar cada día",
+  " (oversold)": " (sobreventa)",
+  " (not overbought)": " (sin sobrecompra)",
+  "Running grid search with train/test split…": "Buscando configuraciones con división entrenamiento/prueba…",
+  "Best Indicator": "Mejor indicador",
+  "No restriction": "Sin filtro",
+  "Train ROI": "Rentabilidad de entrenamiento",
+  "Test ROI": "Rentabilidad de prueba",
+  " vs baseline": " frente al valor base",
+  "Buy Frequency": "Frecuencia de compra",
+  "Best config:": "Mejor configuración:",
+  " — applied to the controls above.": " — aplicada a los controles.",
+  "Chosen on train set (": "Elegida con el conjunto de entrenamiento (",
+  "% of data). ": "% de los datos). ",
+  "Baseline (buy every day) → train ": "Valor base (comprar cada día) → entrenamiento ",
+  ", test ": ", prueba ",
+  "⚠️ The \"best\" config ": "⚠️ La mejor configuración ",
+  "underperformed the baseline on the test set": "obtuvo peores resultados que el valor base en el conjunto de prueba",
+  "This is classic overfitting — treat this indicator rule with caution.": "Esto es un caso típico de sobreajuste; usa esta regla con cautela.",
+  "Top 20 configs (sorted by train ROI)": "20 mejores configuraciones (ordenadas por rentabilidad de entrenamiento)",
+  "Strategy": "Estrategia",
+  "Train ROI %": "Rentabilidad entrenamiento %",
+  "Test ROI %": "Rentabilidad prueba %",
+  "Train Buy %": "Compras en entrenamiento %",
+  "Test Buy %": "Compras en prueba %",
+  "A strategy that looks great on ": "Una estrategia que parece excelente en ",
+  " but collapses on ": " pero empeora mucho en ",
+  "is likely curve-fitted. Prefer configs whose test ROI stays positive and roughly in line with train ROI.": "probablemente está sobreajustada. Prefiere configuraciones cuya rentabilidad de prueba sea positiva y similar a la de entrenamiento.",
+  "Optimizer failed: ": "Error del optimizador: ",
+  "General analysis failed: ": "Error en el análisis general: ",
+  "Chart unavailable: ": "Gráfico no disponible: ",
+  "median DCA return: ": "rentabilidad mediana DCA: ",
+  "Category": "Categoría",
+  "Crypto": "Criptomonedas",
+  "Jan": "Ene",
+  "Feb": "Feb",
+  "Mar": "Mar",
+  "Apr": "Abr",
+  "May": "May",
+  "Jun": "Jun",
+  "Jul": "Jul",
+  "Aug": "Ago",
+  "Sep": "Sep",
+  "Oct": "Oct",
+  "Nov": "Nov",
+  "Dec": "Dic"
+};
+const originalTextNodes = new WeakMap();
+const originalAttributes = new WeakMap();
+const translationEntries = Object.entries(TRANSLATIONS_ES).sort((a, b) => b[0].length - a[0].length);
+const translationPattern = new RegExp(
+  translationEntries.map(([english]) => english.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+let language = "en";
+
+function translateString(text) {
+  if (language === "en") return text;
+  return text.replace(translationPattern, english => TRANSLATIONS_ES[english]);
+}
+
+function translateTextNode(node) {
+  if (!originalTextNodes.has(node)) originalTextNodes.set(node, node.nodeValue);
+  const original = originalTextNodes.get(node);
+  const content = original.trim();
+  if (!content) return;
+  const start = original.indexOf(content);
+  const leading = original.slice(0, start);
+  const trailing = original.slice(start + content.length);
+  const normalized = content.replace(/\s+/g, " ");
+  const translated = leading + translateString(normalized) + trailing;
+  if (node.nodeValue !== translated) node.nodeValue = translated;
+}
+
+function translateSubtree(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    translateTextNode(walker.currentNode);
+  }
+
+  if (root.nodeType === Node.ELEMENT_NODE) {
+    const elements = [root, ...root.querySelectorAll("[aria-label], [title], [placeholder]")];
+    for (const element of elements) {
+      for (const attribute of ["aria-label", "title", "placeholder"]) {
+        if (!element.hasAttribute(attribute)) continue;
+        let originals = originalAttributes.get(element);
+        if (!originals) {
+          originals = {};
+          originalAttributes.set(element, originals);
+        }
+        if (!(attribute in originals)) originals[attribute] = element.getAttribute(attribute);
+        element.setAttribute(attribute, translateString(originals[attribute]));
+      }
+    }
+  }
+}
+
+function setLanguage(nextLanguage) {
+  language = nextLanguage === "es" ? "es" : "en";
+  document.documentElement.lang = language;
+  document.title = language === "es" ? "Panel de inversión periódica (DCA)" : "Daily DCA Dashboard";
+  translateSubtree(document.body);
+}
+
+const translationObserver = new MutationObserver(records => {
+  for (const record of records) {
+    record.addedNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        translateTextNode(node);
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        translateSubtree(node);
+      }
+    });
+  }
+});
+translationObserver.observe(document.body, { childList: true, subtree: true });
+
 /* =========================================================================
    Asset catalogue
    ========================================================================= */
@@ -1885,48 +2281,6 @@ function renderMetrics(data, sim) {
     : "No anomalies detected in this window.";
 }
 
-function renderAssetCharts(data) {
-  const months = monthlyReturns(data);
-  const years = [...new Set([...months.keys()].map(key => key.slice(0, 4)))].sort();
-  const grid = years.map(year => MONTH_LABELS.map((_, i) => {
-    const month = months.get(year + "-" + String(i + 1).padStart(2, "0"));
-    return month ? month.price : null;
-  }));
-
-  renderGeneralPlot("asset-monthly-chart", [{
-    type: "heatmap",
-    x: MONTH_LABELS,
-    y: years,
-    z: grid,
-    zmid: 0,
-    text: grid.map(row => row.map(v => v === null ? "" : v.toFixed(1))),
-    texttemplate: "%{text}",
-    textfont: { size: 9, color: "#fafafa" },
-    colorscale: [[0, "#ef553b"], [0.5, "#1a1f2b"], [1, "#00cc96"]],
-    hovertemplate: "%{y} %{x}<br>Price return: %{z:.1f}%<extra></extra>",
-    colorbar: { title: "%", thickness: 12 }
-  }], {
-    height: Math.max(300, years.length * 26 + 100),
-    margin: { l: 60, r: 20, t: 12, b: 45 },
-    xaxis: { type: "category", gridcolor: "#2d3441" },
-    yaxis: { autorange: "reversed", gridcolor: "#2d3441" }
-  });
-
-  const seasonal = seasonalityFromMonths(months);
-  renderGeneralPlot("asset-seasonality-chart", [{
-    type: "bar",
-    x: MONTH_LABELS,
-    y: seasonal,
-    marker: { color: seasonal.map(v => (v ?? 0) >= 0 ? "#00cc96" : "#ef553b") },
-    hovertemplate: "%{x}<br>Median DCA return: %{y:.2f}%<extra></extra>"
-  }], {
-    height: 300,
-    margin: { l: 62, r: 20, t: 12, b: 45 },
-    xaxis: { type: "category", gridcolor: "#2d3441" },
-    yaxis: { title: "Median DCA return (%)", gridcolor: "#2d3441", zeroline: true }
-  });
-}
-
 function renderChart(data, sim, signal, values) {
   const hasInd = state.indicator !== "none" && values;
   const dates = data.dates;
@@ -2071,11 +2425,6 @@ function showError(msg) {
   document.getElementById("chart").innerHTML = "";
   document.getElementById("purchase-log").innerHTML = "";
   document.getElementById("asset-anomalies").textContent = "";
-  ["asset-monthly-chart", "asset-seasonality-chart"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el.classList.contains("js-plotly-plot")) Plotly.purge(el);
-    el.innerHTML = "";
-  });
 }
 
 /* =========================================================================
@@ -2105,7 +2454,6 @@ async function render() {
 
     renderMetrics(data, sim);
     renderChart(data, sim, signal, values);
-    renderAssetCharts(data);
     renderLog(data, sim, signal);
 
   } catch (e) {
@@ -2378,6 +2726,8 @@ function selectAnalysisTab(view) {
 }
 
 async function init() {
+  setLanguage(document.getElementById("language").value);
+
   // Category select
   const catSel = document.getElementById("category");
   Object.keys(ASSET_CATALOGUE).forEach(c => {
@@ -2449,6 +2799,9 @@ async function init() {
   });
 
   document.getElementById("run-opt").addEventListener("click", runOptimizer);
+  document.getElementById("language").addEventListener("change", event => {
+    setLanguage(event.target.value);
+  });
   ANALYSIS_VIEWS.forEach(name => {
     document.getElementById(name + "-tab").addEventListener("click", () => selectAnalysisTab(name));
   });
