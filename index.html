@@ -26,10 +26,18 @@
     -webkit-font-smoothing: antialiased;
   }
   #app { min-height: 100vh; }
-  #main { padding: 28px 36px 60px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: hidden; margin: 0 auto; }
+  #main { padding: 28px 36px 60px; max-width: 1800px; width: 100%; min-width: 0; overflow-x: clip; margin: 0 auto; }
   .app-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header h1 { margin: 0 0 18px; }
   .language-control { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .dashboard-layout { display: grid; grid-template-columns: minmax(240px, 280px) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .options-panel { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding-right: 4px; }
+  .options-panel .settings-card { padding: 16px; margin-bottom: 14px; }
+  .options-panel .settings-grid, .options-panel .asset-settings { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .options-panel input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+  .options-panel .asset-settings .asset-selection { grid-column: auto; }
+  .dashboard-content { min-width: 0; }
+  .general-options-note { padding: 12px; }
   .language-control select {
     padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text); font: inherit;
@@ -189,6 +197,10 @@
   }
   @media (max-width: 980px) {
     #main { padding: 22px 18px 50px; }
+    .dashboard-layout { grid-template-columns: minmax(0, 1fr); }
+    .options-panel { position: static; max-height: none; overflow: visible; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .options-panel > .settings-card { margin-bottom: 0; }
+    .dashboard-content { min-width: 0; }
     .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .general-chart-grid { grid-template-columns: 1fr; }
   }
@@ -196,6 +208,7 @@
     #main { padding: 18px 12px 40px; }
     .app-header { align-items: flex-start; }
     .app-header h1 { font-size: 22px; }
+    .options-panel { grid-template-columns: 1fr; }
     .language-control { flex-direction: column; align-items: flex-end; gap: 3px; }
     #main h2 { font-size: 18px; }
     #chart { padding: 4px; }
@@ -222,42 +235,107 @@
         </select>
       </div>
     </header>
-    <section class="settings-card" aria-label="Shared analysis settings">
-      <h2>Shared settings</h2>
-      <div class="settings-grid">
-        <div>
-          <label for="daily-amount">Contribution per available data day ($)</label>
-          <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
-        </div>
-        <div>
-          <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
-          <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
-        </div>
-      </div>
-      <p class="hint">The contribution and look-back settings apply across all views. General and Category use plain DCA; Asset can optionally apply an entry filter.</p>
-    </section>
+    <div class="dashboard-layout">
+      <aside class="options-panel" aria-label="Analysis options">
+        <section class="settings-card" aria-label="Shared analysis settings">
+          <h2>Shared settings</h2>
+          <div class="settings-grid">
+            <div>
+              <label for="daily-amount">Contribution per available data day ($)</label>
+              <input id="daily-amount" type="number" min="1" max="1000" step="1" value="5">
+            </div>
+            <div>
+              <label for="days-back">Look-back period (days) <span class="range-val" id="days-back-val">730</span></label>
+              <input id="days-back" type="range" min="60" max="99999" step="1" value="730">
+            </div>
+          </div>
+          <p class="hint">The contribution and look-back settings apply across all views.</p>
+        </section>
 
-    <nav class="analysis-tabs" role="tablist" aria-label="Analysis view">
-      <button id="general-tab" class="analysis-tab" type="button" role="tab"
-        aria-selected="true" aria-controls="general-panel">🌍 General Analysis</button>
-      <button id="category-tab" class="analysis-tab" type="button" role="tab"
-        aria-selected="false" aria-controls="category-panel">📁 Category Analysis</button>
-      <button id="asset-tab" class="analysis-tab" type="button" role="tab"
-        aria-selected="false" aria-controls="asset-panel">📊 Asset Analysis</button>
-    </nav>
-    <div id="general-panel" role="tabpanel" aria-labelledby="general-tab">
+        <section class="settings-card hidden" id="category-options" aria-label="Category analysis settings">
+          <h2>Category</h2>
+          <div class="settings-grid">
+            <div>
+              <label for="category-view">Category</label>
+              <select id="category-view"></select>
+            </div>
+            <div>
+              <label for="category-indicator">Indicator (visualization only)</label>
+              <select id="category-indicator"></select>
+              <div id="category-indicator-params"></div>
+              <p class="hint" id="category-indicator-hint"></p>
+            </div>
+          </div>
+        </section>
+
+        <div class="hidden" id="asset-options">
+          <section class="settings-card" aria-label="Asset selection">
+            <h2>Asset</h2>
+            <div class="settings-grid">
+              <div>
+                <label for="category">Asset category</label>
+                <select id="category"></select>
+              </div>
+              <div>
+                <label for="asset">Choose an asset</label>
+                <select id="asset"></select>
+              </div>
+            </div>
+          </section>
+
+          <details class="settings-card settings-disclosure">
+            <summary>DCA (optional)</summary>
+            <div class="asset-settings">
+              <section>
+                <h2>🎛️ DCA Strategy</h2>
+                <label for="indicator">Indicator</label>
+                <select id="indicator"></select>
+                <div id="indicator-params"></div>
+                <p id="indicator-hint" class="hint"></p>
+              </section>
+              <section>
+                <h2>🔍 Auto-Optimizer</h2>
+                <p class="hint" style="margin-top:0">
+                  Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.
+                </p>
+                <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
+                <input id="split" type="range" min="50" max="85" step="5" value="70">
+                <div style="margin-top:14px">
+                  <button id="run-opt" type="button">🚀 Find best config</button>
+                </div>
+              </section>
+            </div>
+          </details>
+        </div>
+
+        <p class="hint general-options-note" id="general-options" aria-live="polite">
+          General analysis has no tab-specific options.
+        </p>
+      </aside>
+
+      <div class="dashboard-content">
+        <nav class="analysis-tabs" role="tablist" aria-label="Analysis view">
+          <button id="general-tab" class="analysis-tab" type="button" role="tab"
+            aria-selected="true" aria-controls="general-panel">🌍 General Analysis</button>
+          <button id="category-tab" class="analysis-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="category-panel">📁 Category Analysis</button>
+          <button id="asset-tab" class="analysis-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="asset-panel">📊 Asset Analysis</button>
+        </nav>
+        <div id="general-panel" role="tabpanel" aria-labelledby="general-tab">
     <section class="block" id="general-section">
       <h2>🌍 General Analysis <span class="hint" id="general-window"></span></h2>
-      <p class="hint" style="margin-top:-8px">
-        Plain DCA across the asset catalogue: the contribution is invested on every available price-data day.
-        Asset histories can start and end on different dates, so comparisons may have different coverage.
-      </p>
       <div class="metrics" id="general-summary">
         <p class="hint">Loading local price history for the asset catalogue…</p>
       </div>
 
       <h3 class="analysis-title">Visual overview</h3>
       <div class="general-chart-grid">
+        <section class="general-chart-card wide">
+          <h4>Normalized price by category (start = 100)</h4>
+          <p class="hint">Each asset starts at 100 on its first available date. Category lines average assets equally and carry forward the last close for up to 7 days; the overall line weights categories equally. Coverage dates can differ.</p>
+          <div class="general-chart" id="general-normalized-chart"></div>
+        </section>
         <section class="general-chart-card">
           <h4>Median DCA return by category</h4>
           <div class="general-chart" id="general-category-chart"></div>
@@ -265,11 +343,6 @@
         <section class="general-chart-card">
           <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="general-top-chart"></div>
-        </section>
-        <section class="general-chart-card wide">
-          <h4>Normalized price by category (start = 100)</h4>
-          <p class="hint">Each asset starts at 100 on its first available date. Category lines average assets equally and carry forward the last close for up to 7 days; the overall line weights categories equally. Coverage dates can differ.</p>
-          <div class="general-chart" id="general-normalized-chart"></div>
         </section>
       </div>
 
@@ -294,16 +367,6 @@
     </div>
 
     <div id="category-panel" class="hidden" role="tabpanel" aria-labelledby="category-tab">
-    <section class="settings-card" aria-label="Category analysis settings">
-      <h2>Category</h2>
-      <div class="settings-grid">
-        <div>
-          <label for="category-view">Category</label>
-          <select id="category-view"></select>
-        </div>
-      </div>
-    </section>
-
     <section class="block">
       <h2>📁 Category Analysis <span class="hint" id="category-status"></span></h2>
       <div class="metrics" id="category-summary">
@@ -311,6 +374,11 @@
       </div>
       <p class="hint">Plain DCA across the assets in this category. Returns are calculated over each asset's available history in the selected look-back.</p>
       <div class="general-chart-grid">
+        <section class="general-chart-card wide">
+          <h4>Normalized price by asset (start = 100)</h4>
+          <p class="hint">Each asset starts at 100 on its first available date. The category average weights assets equally and carries forward the last close for up to 7 days; coverage dates can differ.</p>
+          <div class="general-chart" id="category-normalized-chart"></div>
+        </section>
         <section class="general-chart-card">
           <h4>DCA return by asset</h4>
           <div class="general-chart" id="category-roi-chart"></div>
@@ -319,10 +387,10 @@
           <h4>Top 10 assets: DCA vs. price return</h4>
           <div class="general-chart" id="category-top-chart"></div>
         </section>
-        <section class="general-chart-card wide">
-          <h4>Normalized price by asset (start = 100)</h4>
-          <p class="hint">Each asset starts at 100 on its first available date. The category average weights assets equally and carries forward the last close for up to 7 days; coverage dates can differ.</p>
-          <div class="general-chart" id="category-normalized-chart"></div>
+        <section class="general-chart-card wide hidden" id="category-indicator-card">
+          <h4>Category indicator — visualization only</h4>
+          <p class="hint">Indicator values are shown for analysis only; they do not affect DCA purchases or run the optimizer.</p>
+          <div class="general-chart" id="category-indicator-chart"></div>
         </section>
       </div>
       <details class="dashboard-details">
@@ -348,48 +416,8 @@
     </div>
 
     <div id="asset-panel" class="hidden" role="tabpanel" aria-labelledby="asset-tab">
-    <section class="settings-card asset-settings" aria-label="Asset analysis settings">
-      <section class="asset-selection">
-        <h2>Asset</h2>
-        <div class="settings-grid">
-          <div>
-            <label for="category">Asset category</label>
-            <select id="category"></select>
-          </div>
-          <div>
-            <label for="asset">Choose an asset</label>
-            <select id="asset"></select>
-          </div>
-        </div>
-      </section>
-      <details class="settings-disclosure" open>
-        <summary>Optional strategy tools — indicators and optimizer</summary>
-        <div class="asset-settings">
-          <section>
-            <h2>🎛️ DCA Strategy</h2>
-            <label for="indicator">Indicator</label>
-            <select id="indicator"></select>
-            <div id="indicator-params"></div>
-            <p id="indicator-hint" class="hint"></p>
-          </section>
-          <section>
-            <h2>🔍 Auto-Optimizer</h2>
-            <p class="hint" style="margin-top:0">
-              Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.
-            </p>
-            <label for="split">Train split (%) <span class="range-val" id="split-val">70</span></label>
-            <input id="split" type="range" min="50" max="85" step="5" value="70">
-            <div style="margin-top:14px">
-              <button id="run-opt" type="button">🚀 Find best config</button>
-            </div>
-          </section>
-        </div>
-      </details>
-    </section>
-
     <section class="block" id="asset-view">
-      <h2 id="asset-title">📊 —</h2>
-      <p class="hint" id="asset-context">Plain DCA invests the selected contribution on every available price-data day.</p>
+      <h2 id="asset-title">📊 Asset Analysis</h2>
       <div class="metrics" id="metrics"></div>
       <div id="chart"></div>
       <p class="hint" id="asset-anomalies"></p>
@@ -408,6 +436,8 @@
     </section>
     </div>
 
+      </div>
+    </div>
     <footer class="footnote">
       Data: downloaded Yahoo Finance snapshot through <span id="data-through">—</span>.
       Candles use the previous close as the open (the snapshot stores high/low/close only).
@@ -425,6 +455,8 @@
 const TRANSLATIONS_ES = {
   "Daily DCA Dashboard": "Panel de inversión periódica (DCA)",
   "Select language": "Seleccionar idioma",
+  "Analysis options": "Opciones de análisis",
+  "General analysis has no tab-specific options.": "El análisis general no tiene opciones específicas.",
   "Shared settings": "Configuración general",
   "Shared analysis settings": "Configuración general del análisis",
   "Contribution per available data day ($)": "Aporte por día con datos disponibles ($)",
@@ -456,6 +488,16 @@ const TRANSLATIONS_ES = {
   "Data warnings and anomalies": "Avisos y anomalías de datos",
   "Category analysis settings": "Configuración del análisis por categoría",
   "Category": "Categoría",
+  "Indicator (visualization only)": "Indicador (solo visualización)",
+  "DCA (optional)": "DCA (opcional)",
+  "No indicator": "Sin indicador",
+  "No indicator selected.": "No hay ningún indicador seleccionado.",
+  "Visualization only; this does not change DCA purchases or run optimization.": "Solo visualización; no cambia las compras DCA ni ejecuta optimización.",
+  "Category indicator — visualization only": "Indicador de categoría — solo visualización",
+  "Indicator values are shown for analysis only; they do not affect DCA purchases or run the optimizer.": "Los valores del indicador son solo para análisis; no afectan las compras DCA ni ejecutan el optimizador.",
+  "Category median RSI": "Mediana de categoría RSI",
+  "Category median MFI": "Mediana de categoría MFI",
+  "Category median CCI": "Mediana de categoría CCI",
   "Select a category to see its summary.": "Selecciona una categoría para ver el resumen.",
   "Plain DCA across the assets in this category. Returns are calculated over each asset's available history in the selected look-back.": "DCA simple para los activos de esta categoría. La rentabilidad usa el historial disponible de cada activo dentro del período seleccionado.",
   "DCA return by asset": "Rentabilidad DCA por activo",
@@ -474,7 +516,6 @@ const TRANSLATIONS_ES = {
   "Tests indicator configurations against a plain-DCA baseline using a chronological train/test split.": "Compara configuraciones de indicadores con una estrategia DCA simple, usando una división cronológica entre entrenamiento y prueba.",
   "Train split (%)": "Porcentaje de entrenamiento (%)",
   "🚀 Find best config": "🚀 Buscar la mejor configuración",
-  "Plain DCA invests the selected contribution on every available price-data day.": "El DCA simple invierte el aporte seleccionado cada día con datos de precios disponibles.",
   "Monthly price return": "Rentabilidad mensual del precio",
   "DCA seasonality (median by calendar month)": "Estacionalidad DCA (mediana por mes)",
   "🔍 Auto-Optimizer Results": "🔍 Resultados del optimizador",
@@ -1355,6 +1396,30 @@ function stdev(values) {
   return Math.sqrt(values.reduce((sum, v) => sum + (v - m) * (v - m), 0) / (values.length - 1));
 }
 
+function computePriceStdevBands(closes, period) {
+  const bands = {
+    mean: new Array(closes.length).fill(null),
+    upper1: new Array(closes.length).fill(null),
+    upper2: new Array(closes.length).fill(null),
+    upper3: new Array(closes.length).fill(null),
+    lower1: new Array(closes.length).fill(null),
+    lower2: new Array(closes.length).fill(null),
+    lower3: new Array(closes.length).fill(null)
+  };
+  for (let i = period - 1; i < closes.length; i++) {
+    const window = closes.slice(i - period + 1, i + 1);
+    if (window.some(value => !Number.isFinite(value))) continue;
+    const center = mean(window);
+    const deviation = stdev(window);
+    bands.mean[i] = center;
+    for (let sigma = 1; sigma <= 3; sigma++) {
+      bands["upper" + sigma][i] = center + sigma * deviation;
+      bands["lower" + sigma][i] = center - sigma * deviation;
+    }
+  }
+  return bands;
+}
+
 function medianOrNull(values) {
   return values.length ? median(values) : null;
 }
@@ -1519,6 +1584,8 @@ let generalAnalysisToken = 0;
 let generalAnalysisLoaded = false;
 let generalAnalysisData = null;
 let categoryRenderToken = 0;
+let categoryIndicator = "none";
+let categoryIndicatorPeriod = 14;
 
 function renderGeneralPlot(id, traces, layout) {
   const target = document.getElementById(id);
@@ -1827,7 +1894,118 @@ function renderCategoryCharts(rows) {
 
 }
 
-function renderCategoryDetails(results) {
+function renderCategoryIndicatorChart(results, fng, fngError) {
+  const card = document.getElementById("category-indicator-card");
+  const indicator = categoryIndicator;
+  if (indicator === "none") {
+    card.classList.add("hidden");
+    clearPlot("category-indicator-chart", "No indicator selected.");
+    return;
+  }
+  card.classList.remove("hidden");
+
+  const usable = results.filter(result => result.data);
+  if (!usable.length) {
+    clearPlot("category-indicator-chart", "No usable price history for this category.");
+    return;
+  }
+  if (indicator === "Fear & Greed" && fngError) {
+    clearPlot("category-indicator-chart", "Could not load Fear & Greed data: " + fngError.message);
+    document.getElementById("category-indicator-chart").innerHTML =
+      '<p class="warning">Could not load Fear &amp; Greed data: ' +
+      htmlEscape(fngError.message) + '</p>';
+    return;
+  }
+  if (indicator === "Fear & Greed" && !fng) {
+    clearPlot("category-indicator-chart", "Fear & Greed data is unavailable.");
+    return;
+  }
+
+  let dates, values;
+  if (indicator === "Fear & Greed") {
+    dates = [...new Set(usable.flatMap(result => result.data.dates))].sort();
+    const entries = [...fng.entries()].sort(([a], [b]) => a.localeCompare(b));
+    let entryIndex = 0;
+    let lastValue = null;
+    values = dates.map(date => {
+      while (entryIndex < entries.length && entries[entryIndex][0] <= date) {
+        lastValue = Number(entries[entryIndex][1]);
+        entryIndex++;
+      }
+      return lastValue;
+    });
+  } else {
+    const valuesByDate = new Map();
+    usable.forEach(({ data }) => {
+      let series;
+      if (indicator === "RSI") {
+        series = computeRSI(data.close, categoryIndicatorPeriod);
+      } else if (indicator === "MFI") {
+        series = computeMFI(data.high, data.low, data.close, data.volume, categoryIndicatorPeriod);
+      } else {
+        series = computeCCI(data.high, data.low, data.close, categoryIndicatorPeriod);
+      }
+      data.dates.forEach((date, index) => {
+        const value = series[index];
+        if (value === null || !Number.isFinite(value)) return;
+        if (!valuesByDate.has(date)) valuesByDate.set(date, []);
+        valuesByDate.get(date).push(value);
+      });
+    });
+    dates = [...valuesByDate.keys()].sort();
+    values = dates.map(date => median(valuesByDate.get(date)));
+  }
+
+  if (!values.some(value => value !== null && Number.isFinite(value))) {
+    clearPlot("category-indicator-chart", "Not enough data to calculate this indicator.");
+    return;
+  }
+
+  const indicatorLabel = indicator === "Fear & Greed"
+    ? indicator
+    : indicator + " (" + categoryIndicatorPeriod + ")";
+  const thresholds = {
+    "RSI": [30, 70],
+    "MFI": [20, 80],
+    "CCI": [-100, 100],
+    "Fear & Greed": [25, 75]
+  }[indicator];
+  const yaxis = {
+    title: indicatorLabel,
+    gridcolor: "#2d3441",
+    zeroline: indicator === "CCI"
+  };
+  if (indicator !== "CCI") yaxis.range = [0, 100];
+
+  renderGeneralPlot("category-indicator-chart", [{
+    type: "scatter",
+    mode: "lines",
+    name: translateString(indicator === "Fear & Greed"
+      ? "Fear & Greed"
+      : "Category median " + indicator),
+    x: dates,
+    y: values,
+    line: { color: "#ffa15a", width: 2.5 },
+    hovertemplate: "%{x|%Y-%m-%d}<br>%{y:.2f}<extra>%{fullData.name}</extra>"
+  }], {
+    height: 390,
+    hovermode: "x unified",
+    margin: { l: 75, r: 20, t: 12, b: 55 },
+    xaxis: { title: translateString("Date"), type: "date", gridcolor: "#2d3441" },
+    yaxis,
+    shapes: thresholds.map(value => ({
+      type: "line",
+      xref: "paper",
+      x0: 0,
+      x1: 1,
+      y0: value,
+      y1: value,
+      line: { color: "#9aa4b2", dash: "dot", width: 1 }
+    }))
+  });
+}
+
+function renderCategoryDetails(results, fng, fngError) {
   const nameByTicker = new Map(Object.entries(ALL_ASSETS).map(([name, ticker]) => [ticker, name]));
   const rows = results.filter(r => r.data).map(r => {
     const last = r.data.close.length - 1;
@@ -1849,6 +2027,7 @@ function renderCategoryDetails(results) {
   }).sort((a, b) => b.roi - a.roi);
 
   renderCategorySummary(results, rows, nameByTicker);
+  renderCategoryIndicatorChart(results, fng, fngError);
 
   if (!rows.length) {
     ["category-top-chart", "category-roi-chart", "category-normalized-chart"]
@@ -1939,6 +2118,11 @@ async function renderCategoryAnalysis() {
   const category = document.getElementById("category-view").value;
   const status = document.getElementById("category-status");
   const tickers = Object.values(ASSET_CATALOGUE[category] || {});
+  const indicatorCard = document.getElementById("category-indicator-card");
+  indicatorCard.classList.toggle("hidden", categoryIndicator === "none");
+  if (categoryIndicator !== "none") {
+    clearPlot("category-indicator-chart", "Loading indicator visualization…");
+  }
   status.textContent = "· Loading " + tickers.length + " assets…";
   ["category-summary", "category-members", "category-momentum", "category-top", "category-anomalies"]
     .forEach(id => document.getElementById(id).innerHTML = '<p class="hint">Loading…</p>');
@@ -1952,10 +2136,21 @@ async function renderCategoryAnalysis() {
   }));
   if (token !== categoryRenderToken) return;
 
+  let fng = null;
+  let fngError = null;
+  if (categoryIndicator === "Fear & Greed") {
+    try {
+      fng = await loadFearGreed();
+    } catch (error) {
+      fngError = error;
+    }
+    if (token !== categoryRenderToken) return;
+  }
+
   status.textContent = "· " + category.replace(/^── | ──$/g, "") +
     " · " + results.filter(r => r.data).length + " assets · " + state.daysBack + "-day window";
 
-  renderCategoryDetails(results);
+  renderCategoryDetails(results, fng, fngError);
 }
 
 function refreshCategoryIfActive() {
@@ -2233,6 +2428,7 @@ function renderChart(data, sim, signal, values) {
   const open = data.close.map((c, i) => i > 0 ? data.close[i - 1] : c);
   // Buy-and-hold return, to compare against the DCA return.
   const assetPct = data.close.map(c => (c / data.close[0] - 1) * 100);
+  const priceBands = computePriceStdevBands(data.close, 20);
 
   const traces = [
     {
@@ -2241,6 +2437,21 @@ function renderChart(data, sim, signal, values) {
       increasing: { line: { color: "#00CC96" } },
       decreasing: { line: { color: "#EF553B" } }
     },
+    {
+      x: dates, y: priceBands.mean, type: "scatter", mode: "lines",
+      name: "20-day mean", line: { color: "#9aa4b2", width: 1, dash: "dot" }
+    },
+    ...[
+      ["upper1", "Upper +1σ (20d)", "#ef553b", "solid"],
+      ["upper2", "Upper +2σ (20d)", "#ff8066", "dash"],
+      ["upper3", "Upper +3σ (20d)", "#ffb199", "dot"],
+      ["lower1", "Lower -1σ (20d)", "#00cc96", "solid"],
+      ["lower2", "Lower -2σ (20d)", "#33d6aa", "dash"],
+      ["lower3", "Lower -3σ (20d)", "#80e6c6", "dot"]
+    ].map(([key, name, color, dash]) => ({
+      x: dates, y: priceBands[key], type: "scatter", mode: "lines",
+      name, line: { color, width: 1, dash }
+    })),
     {
       x: dates, y: data.volume, type: "bar", name: "Volume", yaxis: "y2",
       marker: { color: "#3a4559" }
@@ -2359,7 +2570,7 @@ function renderLog(data, sim, signal) {
 }
 
 function showError(msg) {
-  document.getElementById("asset-title").textContent = "📊 " + state.ticker;
+  document.getElementById("asset-title").textContent = translateString("📊 Asset Analysis");
   document.getElementById("metrics").innerHTML =
     '<div class="metric" style="grid-column:1/-1">' +
     '<div class="label">Error</div>' +
@@ -2378,7 +2589,7 @@ let renderToken = 0;
 async function render() {
   const token = ++renderToken;
   state.ticker = getEffectiveTicker();
-  document.getElementById("asset-title").textContent = "📊 " + state.ticker;
+  document.getElementById("asset-title").textContent = translateString("📊 Asset Analysis");
 
   try {
     const data = await getData(state.ticker, state.daysBack);
@@ -2442,6 +2653,59 @@ function updateIndicatorOptions() {
     state.params = {};
   }
   sel.value = state.indicator;
+}
+
+function updateCategoryIndicatorOptions() {
+  const select = document.getElementById("category-indicator");
+  const category = document.getElementById("category-view").value.replace(/^── | ──$/g, "");
+  const choices = ["none", "RSI", "MFI", "CCI"];
+  if (category === "Crypto") choices.push("Fear & Greed");
+
+  select.innerHTML = "";
+  choices.forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value === "none" ? "No indicator" : value;
+    select.appendChild(option);
+  });
+  if (!choices.includes(categoryIndicator)) categoryIndicator = "none";
+  select.value = categoryIndicator;
+  updateCategoryIndicatorParams();
+}
+
+function updateCategoryIndicatorParams() {
+  const params = document.getElementById("category-indicator-params");
+  const hint = document.getElementById("category-indicator-hint");
+  params.innerHTML = "";
+
+  if (categoryIndicator === "none") {
+    hint.textContent = "No indicator selected.";
+    return;
+  }
+  if (["RSI", "MFI", "CCI"].includes(categoryIndicator)) {
+    const label = document.createElement("label");
+    label.textContent = "Period ";
+    const value = document.createElement("span");
+    value.className = "range-val";
+    value.textContent = categoryIndicatorPeriod;
+    label.appendChild(value);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "5";
+    input.max = "30";
+    input.step = "1";
+    input.value = categoryIndicatorPeriod;
+    input.addEventListener("input", () => {
+      categoryIndicatorPeriod = Number(input.value);
+      value.textContent = categoryIndicatorPeriod;
+    });
+    input.addEventListener("change", renderCategoryAnalysis);
+    params.appendChild(label);
+    params.appendChild(input);
+  }
+
+  hint.textContent = "Visualization only; this does not change DCA purchases or run optimization.";
 }
 
 function makeRange(labelText, min, max, value, step, onInput) {
@@ -2659,6 +2923,9 @@ function selectAnalysisTab(view) {
     document.getElementById(name + "-tab").tabIndex = active ? 0 : -1;
     document.getElementById(name + "-panel").classList.toggle("hidden", !active);
   });
+  document.getElementById("category-options").classList.toggle("hidden", view !== "category");
+  document.getElementById("asset-options").classList.toggle("hidden", view !== "asset");
+  document.getElementById("general-options").classList.toggle("hidden", view !== "general");
   if (view === "asset") {
     render();
   } else if (view === "category") {
@@ -2686,6 +2953,7 @@ async function init() {
     o.value = c; o.textContent = c.replace(/^── | ──$/g, "");
     categoryView.appendChild(o);
   });
+  updateCategoryIndicatorOptions();
 
   // Initial state from inputs
   updateDaysSliderMax();
@@ -2748,7 +3016,15 @@ async function init() {
   ANALYSIS_VIEWS.forEach(name => {
     document.getElementById(name + "-tab").addEventListener("click", () => selectAnalysisTab(name));
   });
-  document.getElementById("category-view").addEventListener("change", renderCategoryAnalysis);
+  document.getElementById("category-view").addEventListener("change", () => {
+    updateCategoryIndicatorOptions();
+    renderCategoryAnalysis();
+  });
+  document.getElementById("category-indicator").addEventListener("change", event => {
+    categoryIndicator = event.target.value;
+    updateCategoryIndicatorParams();
+    renderCategoryAnalysis();
+  });
   document.querySelector(".analysis-tabs").addEventListener("keydown", event => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
